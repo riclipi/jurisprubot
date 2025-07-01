@@ -12,18 +12,23 @@ def test_interface():
     
     try:
         # Testar importação
-        from src.interface.app import load_search_engine, display_results
+        from src.interface.app import load_local_search_engine, load_realtime_search_engine, perform_search
         print("✅ Interface importada com sucesso!")
         
-        # Testar carregamento do sistema de busca
-        print("🚀 Testando carregamento do sistema...")
-        search_engine = load_search_engine()
-        print("✅ Sistema de busca carregado!")
+        # Testar carregamento do sistema de busca local
+        print("🚀 Testando carregamento do sistema local...")
+        local_engine = load_local_search_engine()
+        print("✅ Sistema de busca local carregado!")
         
-        # Testar uma busca simples
-        print("🔍 Testando busca...")
-        results = search_engine.search("negativação indevida", top_k=2)
-        print(f"✅ Busca executada! {len(results)} resultados encontrados")
+        # Testar carregamento do sistema de tempo real
+        print("🌐 Testando carregamento do sistema tempo real...")
+        realtime_engine = load_realtime_search_engine()
+        print("✅ Sistema de busca tempo real carregado!")
+        
+        # Testar uma busca simples local
+        print("🔍 Testando busca local...")
+        results = local_engine.search("negativação indevida", top_k=2)
+        print(f"✅ Busca local executada! {len(results)} resultados encontrados")
         
         # Mostrar primeiro resultado
         if results:

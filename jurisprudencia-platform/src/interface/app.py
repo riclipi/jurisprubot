@@ -1,197 +1,695 @@
 """
-Interface Web SIMPLES para busca de jurisprudência
-Usando Streamlit
+🏛️ INTERFACE PREMIUM - Busca de Jurisprudência TJSP
+Sistema Avançado com Busca Local + Tempo Real
 """
 
 import streamlit as st
 import sys
 import os
+import time
+import json
+from datetime import datetime, timedelta
+import hashlib
+import base64
 sys.path.append('.')
 from src.rag.simple_search import SimpleSearchEngine
+from src.scraper.realtime_search import RealtimeJurisprudenceSearch
 
 # Configuração da página
 st.set_page_config(
-    page_title='Busca de Jurisprudência TJSP',
+    page_title='🏛️ Jurisprudência TJSP Premium',
     page_icon='⚖️',
-    layout='wide'
+    layout='wide',
+    initial_sidebar_state='expanded'
 )
 
-# Carregar sistema apenas uma vez (cache)
-@st.cache_resource
-def load_search_engine():
-    """Carrega o sistema de busca (cached)"""
-    with st.spinner('🚀 Carregando sistema de busca...'):
-        return SimpleSearchEngine()
-
-def display_results(results):
-    """
-    Exibe os resultados da busca de forma organizada
+# CSS customizado para interface premium
+st.markdown("""
+<style>
+    /* Tema principal */
+    .main {
+        padding-top: 2rem;
+    }
     
-    Args:
-        results: Lista de resultados da busca
-    """
+    /* Toggle de modo personalizado */
+    .search-mode-toggle {
+        display: flex;
+        background: linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%);
+        border-radius: 15px;
+        padding: 8px;
+        margin: 15px 0;
+        border: 2px solid #4a90e2;
+    }
+    
+    /* Cards de estatísticas */
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        margin: 10px 0;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    /* Status indicators */
+    .status-online {
+        color: #00d084;
+        font-weight: bold;
+    }
+    
+    .status-local {
+        color: #ffa500;
+        font-weight: bold;
+    }
+    
+    .status-offline {
+        color: #ff4444;
+        font-weight: bold;
+    }
+    
+    /* Badges de resultado */
+    .badge-realtime {
+        background: linear-gradient(90deg, #00d084, #00a86b);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-left: 10px;
+    }
+    
+    .badge-local {
+        background: linear-gradient(90deg, #ffa500, #ff8c00);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-left: 10px;
+    }
+    
+    /* Animação de loading */
+    .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Cards de exemplo */
+    .example-card {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 12px;
+        margin: 5px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .example-card:hover {
+        background: #e9ecef;
+        border-color: #4a90e2;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    /* Progress bar customizada */
+    .custom-progress {
+        width: 100%;
+        height: 25px;
+        background-color: #f0f0f0;
+        border-radius: 12px;
+        overflow: hidden;
+        margin: 10px 0;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #4a90e2, #67b3f3);
+        border-radius: 12px;
+        transition: width 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 12px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ==================== FUNÇÕES DE CACHE E ESTADO ====================
+
+@st.cache_resource
+def load_local_search_engine():
+    """Carrega o sistema de busca local (cached)"""
+    return SimpleSearchEngine()
+
+@st.cache_resource  
+def load_realtime_search_engine():
+    """Carrega o sistema de busca em tempo real (cached)"""
+    return RealtimeJurisprudenceSearch(max_results=20)
+
+def init_session_state():
+    """Inicializa estado da sessão"""
+    if 'search_history' not in st.session_state:
+        st.session_state.search_history = []
+    
+    if 'search_stats' not in st.session_state:
+        st.session_state.search_stats = {
+            'total_searches': 0,
+            'local_searches': 0,
+            'realtime_searches': 0,
+            'successful_realtime': 0,
+            'avg_response_time': 0,
+            'searches_today': 0,
+            'last_reset': datetime.now().date()
+        }
+    
+    if 'query_cache' not in st.session_state:
+        st.session_state.query_cache = {}
+    
+    if 'saved_results' not in st.session_state:
+        st.session_state.saved_results = []
+    
+    if 'tjsp_status' not in st.session_state:
+        st.session_state.tjsp_status = 'unknown'  # online, local, offline
+    
+    # Reset diário de estatísticas
+    today = datetime.now().date()
+    if st.session_state.search_stats['last_reset'] != today:
+        st.session_state.search_stats['searches_today'] = 0
+        st.session_state.search_stats['last_reset'] = today
+
+# ==================== FUNÇÕES DE INTERFACE ====================
+
+def render_header():
+    """Renderiza cabeçalho premium"""
+    st.markdown("""
+    <div style='text-align: center; padding: 30px 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; margin-bottom: 30px; color: white;'>
+        <h1 style='margin: 0; font-size: 2.5em;'>🏛️ Jurisprudência TJSP</h1>
+        <h3 style='margin: 10px 0 0 0; opacity: 0.9;'>Sistema Premium de Busca Jurídica</h3>
+        <p style='margin: 5px 0 0 0; opacity: 0.8; font-size: 1.1em;'>
+            Base Local (10 docs) + Busca Tempo Real (TJSP Oficial)
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_search_mode_toggle():
+    """Renderiza toggle premium para modo de busca"""
+    st.markdown("### 🔍 Modo de Busca")
+    
+    # Toggle customizado
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        local_selected = st.button(
+            "🏠 **BUSCA LOCAL**\n⚡ Rápida (1-3s)\n📚 10 acórdãos indexados", 
+            key="local_mode",
+            help="Busca na base local - sempre disponível e rápida",
+            use_container_width=True
+        )
+    
+    with col2:
+        realtime_selected = st.button(
+            "🌐 **TEMPO REAL**\n🔗 Site oficial TJSP\n📈 Milhares de documentos", 
+            key="realtime_mode",
+            help="Busca direta no site do TJSP - pode demorar 30-60s",
+            use_container_width=True
+        )
+    
+    # Determinar modo selecionado
+    if local_selected:
+        st.session_state.search_mode = 'local'
+    elif realtime_selected:
+        st.session_state.search_mode = 'realtime'
+    elif 'search_mode' not in st.session_state:
+        st.session_state.search_mode = 'local'
+    
+    # Exibir modo atual com status
+    mode = st.session_state.search_mode
+    if mode == 'local':
+        st.success("🏠 **MODO ATIVO:** Busca Local - Rápida e Confiável")
+    else:
+        status_color = get_tjsp_status_color()
+        st.info(f"🌐 **MODO ATIVO:** Tempo Real - {status_color}")
+    
+    return mode
+
+def get_tjsp_status_color():
+    """Retorna status colorido do TJSP"""
+    status = st.session_state.tjsp_status
+    if status == 'online':
+        return '<span class="status-online">🟢 TJSP Online</span>'
+    elif status == 'local':
+        return '<span class="status-local">🟡 Usando Cache Local</span>'
+    else:
+        return '<span class="status-offline">🔴 Status Desconhecido</span>'
+
+def render_example_queries():
+    """Renderiza botões de consultas de exemplo"""
+    st.markdown("### 💡 Consultas Rápidas")
+    
+    examples = [
+        {"title": "💰 Dano Moral", "query": "dano moral indenização valor", "desc": "Casos de indenização"},
+        {"title": "🏦 Negativação", "query": "negativação indevida banco serasa", "desc": "Inscrição indevida"},
+        {"title": "📋 CDC", "query": "código defesa consumidor", "desc": "Direito do consumidor"},
+        {"title": "⚖️ Condenação", "query": "valor condenação acórdão", "desc": "Valores de condenação"},
+        {"title": "🏛️ Unanimidade", "query": "decisão unânime acórdão", "desc": "Decisões unânimes"},
+        {"title": "📅 Recente 2024", "query": "2024 julgamento", "desc": "Casos de 2024"}
+    ]
+    
+    cols = st.columns(3)
+    for i, example in enumerate(examples):
+        with cols[i % 3]:
+            if st.button(
+                f"**{example['title']}**\n{example['desc']}", 
+                key=f"example_{i}",
+                help=f"Buscar: {example['query']}",
+                use_container_width=True
+            ):
+                st.session_state.example_query = example['query']
+                st.rerun()
+
+def render_search_input():
+    """Renderiza campo de busca principal"""
+    st.markdown("### 🔍 Digite sua Consulta")
+    
+    # Campo de entrada com query de exemplo se houver
+    query = ""
+    if 'example_query' in st.session_state:
+        query = st.session_state.example_query
+        del st.session_state.example_query
+    
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        search_query = st.text_input(
+            "Consulta:",
+            value=query,
+            placeholder="Ex: dano moral banco, negativação indevida, valor indenização...",
+            label_visibility="collapsed",
+            key="search_input"
+        )
+    
+    with col2:
+        search_clicked = st.button("🔍 BUSCAR", type="primary", use_container_width=True)
+    
+    return search_query, search_clicked
+
+def render_progress_bar(progress, message):
+    """Renderiza barra de progresso animada"""
+    st.markdown(f"""
+    <div class="custom-progress">
+        <div class="progress-fill" style="width: {progress}%">
+            {progress}% - {message}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def perform_search_with_progress(query, mode):
+    """Executa busca com barra de progresso"""
+    start_time = time.time()
+    
+    # Container para progresso
+    progress_container = st.container()
+    result_container = st.container()
+    
+    try:
+        if mode == 'local':
+            # Busca local rápida
+            with progress_container:
+                render_progress_bar(20, "Carregando sistema local...")
+                time.sleep(0.5)
+                
+                render_progress_bar(60, "Processando consulta...")
+                engine = load_local_search_engine()
+                
+                render_progress_bar(90, "Finalizando busca...")
+                results = engine.search(query, top_k=10)
+                
+                render_progress_bar(100, "Busca concluída!")
+                time.sleep(0.3)
+            
+            # Atualizar estatísticas
+            st.session_state.search_stats['local_searches'] += 1
+            st.session_state.tjsp_status = 'local'
+            
+        else:  # realtime
+            # Busca em tempo real com progresso detalhado
+            with progress_container:
+                render_progress_bar(10, "Iniciando conexão com TJSP...")
+                time.sleep(1)
+                
+                render_progress_bar(25, "Conectando ao site oficial...")
+                engine = load_realtime_search_engine()
+                time.sleep(1)
+                
+                render_progress_bar(40, "Enviando consulta...")
+                time.sleep(1)
+                
+                render_progress_bar(60, "Analisando resultados...")
+                results = engine.get_relevant_chunks(query)
+                
+                render_progress_bar(80, "Aplicando busca semântica...")
+                time.sleep(0.5)
+                
+                render_progress_bar(100, "Busca concluída!")
+                time.sleep(0.3)
+            
+            # Verificar se usou fallback
+            if results and results[0].get('source') == 'local_data':
+                st.session_state.tjsp_status = 'local'
+                st.warning("🟡 **TJSP indisponível** - Resultados da base local")
+            else:
+                st.session_state.tjsp_status = 'online'
+                st.session_state.search_stats['successful_realtime'] += 1
+                st.success("🟢 **TJSP conectado** - Resultados em tempo real")
+            
+            st.session_state.search_stats['realtime_searches'] += 1
+        
+        # Limpar progresso
+        progress_container.empty()
+        
+        # Calcular estatísticas
+        response_time = time.time() - start_time
+        update_search_stats(query, mode, len(results), response_time)
+        
+        return results, response_time
+        
+    except Exception as e:
+        progress_container.empty()
+        st.error(f"❌ Erro na busca: {str(e)}")
+        return [], 0
+
+def update_search_stats(query, mode, result_count, response_time):
+    """Atualiza estatísticas de busca"""
+    stats = st.session_state.search_stats
+    
+    # Estatísticas gerais
+    stats['total_searches'] += 1
+    stats['searches_today'] += 1
+    
+    # Tempo médio
+    total_time = stats['avg_response_time'] * (stats['total_searches'] - 1) + response_time
+    stats['avg_response_time'] = total_time / stats['total_searches']
+    
+    # Adicionar ao histórico
+    search_entry = {
+        'query': query,
+        'mode': mode,
+        'results': result_count,
+        'time': response_time,
+        'timestamp': datetime.now(),
+        'status': st.session_state.tjsp_status
+    }
+    
+    st.session_state.search_history.insert(0, search_entry)
+    
+    # Manter apenas últimas 10 buscas
+    if len(st.session_state.search_history) > 10:
+        st.session_state.search_history = st.session_state.search_history[:10]
+
+def render_results(results, mode, response_time):
+    """Renderiza resultados com badges e funcionalidades premium"""
     if not results:
-        st.warning("❌ Nenhum resultado encontrado para sua consulta.")
-        st.info("💡 **Dicas:**\n- Tente palavras-chave diferentes\n- Use termos jurídicos como 'dano moral', 'indenização', 'negativação'\n- Seja mais específico ou mais geral")
+        st.warning("❌ Nenhum resultado encontrado")
+        st.info("💡 **Dicas:** Tente palavras-chave diferentes ou use os botões de exemplo")
         return
     
-    st.success(f"✅ Encontrados **{len(results)}** resultados relevantes")
+    # Header dos resultados
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        badge_class = "badge-realtime" if mode == "realtime" and st.session_state.tjsp_status == "online" else "badge-local"
+        badge_text = "TEMPO REAL" if mode == "realtime" and st.session_state.tjsp_status == "online" else "LOCAL"
+        
+        st.markdown(f"""
+        **✅ {len(results)} resultados encontrados** 
+        <span class="{badge_class}">{badge_text}</span>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.metric("⏱️ Tempo", f"{response_time:.1f}s")
+    
+    with col3:
+        if st.button("💾 Salvar Busca", help="Salvar esta busca nos favoritos"):
+            save_search_results(results, mode)
+            st.success("Busca salva!")
+    
+    st.divider()
     
     # Exibir cada resultado
     for i, result in enumerate(results):
         with st.container():
             # Header do resultado
-            col1, col2 = st.columns([3, 1])
+            col1, col2, col3 = st.columns([3, 1, 1])
             
             with col1:
-                st.markdown(f"### 📄 Resultado #{result['rank']}")
-                st.markdown(f"**📁 Arquivo:** `{result['metadata']['file']}`")
+                st.markdown(f"### 📄 Resultado #{i+1}")
+                
+                # Informações específicas por tipo
+                if mode == "realtime" and result.get('source') != 'local_data':
+                    if result.get('processo', 'N/A') != 'N/A':
+                        st.markdown(f"**⚖️ Processo:** `{result['processo']}`")
+                    if result.get('relator', 'N/A') != 'N/A':
+                        st.markdown(f"**👨‍⚖️ Relator:** {result['relator']}")
+                    if result.get('data', 'N/A') != 'N/A':
+                        st.markdown(f"**📅 Data:** {result['data']}")
+                    
+                    # Link direto para TJSP
+                    if result.get('url'):
+                        st.markdown(f"**🔗 [Ver Acórdão Completo no TJSP]({result['url']})**")
+                else:
+                    arquivo = result.get('metadata', {}).get('file', result.get('arquivo_local', 'N/A'))
+                    st.markdown(f"**📁 Arquivo:** `{arquivo}`")
             
             with col2:
-                # Score com cor baseada na relevância
-                score = result['score']
+                # Score com indicador visual
+                score = result.get('score', 0)
                 if score > 0.7:
-                    score_color = "🟢"
+                    color = "🟢"
                 elif score > 0.5:
-                    score_color = "🟡"
+                    color = "🟡"
                 else:
-                    score_color = "🟠"
+                    color = "🟠"
                 
-                st.markdown(f"**Relevância:** {score_color} {score:.3f}")
+                st.metric("Relevância", f"{score:.3f}", delta=None)
+                st.markdown(f"**{color} Qualidade**")
+            
+            with col3:
+                # Botão de ação
+                if st.button(f"⭐ Favoritar", key=f"fav_{i}"):
+                    add_to_favorites(result)
+                    st.success("Adicionado aos favoritos!")
             
             # Conteúdo do resultado
-            st.markdown("**📝 Trecho encontrado:**")
-            st.markdown(f"> {result['text']}")
+            st.markdown("**📝 Trecho Relevante:**")
+            st.markdown(f"> {result.get('text', '')}")
             
             # Separador visual
             if i < len(results) - 1:
                 st.divider()
 
-def main():
-    """Interface principal"""
+def save_search_results(results, mode):
+    """Salva resultados da busca"""
+    saved_search = {
+        'id': hashlib.md5(str(datetime.now()).encode()).hexdigest()[:8],
+        'timestamp': datetime.now(),
+        'mode': mode,
+        'results': results,
+        'count': len(results)
+    }
     
-    # Header bonito
-    st.markdown("""
-    <div style='text-align: center; padding: 20px;'>
-        <h1>⚖️ Busca de Jurisprudência TJSP</h1>
-        <h3>Sistema de Busca Semântica em Acórdãos sobre Negativação Indevida</h3>
-        <p style='color: #666; font-size: 16px;'>
-            Encontre rapidamente trechos relevantes em 10 acórdãos do Tribunal de Justiça de São Paulo
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.session_state.saved_results.insert(0, saved_search)
     
-    st.divider()
+    # Manter apenas últimas 20 buscas salvas
+    if len(st.session_state.saved_results) > 20:
+        st.session_state.saved_results = st.session_state.saved_results[:20]
+
+def add_to_favorites(result):
+    """Adiciona resultado aos favoritos"""
+    if 'favorites' not in st.session_state:
+        st.session_state.favorites = []
     
-    # Seção de busca
-    st.markdown("## 🔍 Faça sua consulta")
+    favorite = {
+        'id': hashlib.md5(str(result).encode()).hexdigest()[:8],
+        'timestamp': datetime.now(),
+        'result': result
+    }
     
-    # Campo de entrada principal
-    col1, col2 = st.columns([4, 1])
-    
-    with col1:
-        query = st.text_input(
-            "Digite sua pergunta:",
-            placeholder="Ex: negativação indevida banco, dano moral indenização, valor da condenação...",
-            label_visibility="collapsed"
-        )
-    
-    with col2:
-        search_button = st.button("🔍 Buscar", type="primary", use_container_width=True)
-    
-    # Botões de exemplo
-    st.markdown("**💡 Ou teste com estas consultas de exemplo:**")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    example_queries = [
-        "negativação indevida banco",
-        "dano moral indenização",
-        "serasa spc nome",
-        "valor da condenação"
-    ]
-    
-    selected_example = None
-    
-    with col1:
-        if st.button("🏦 Negativação Indevida", use_container_width=True):
-            selected_example = example_queries[0]
-    
-    with col2:
-        if st.button("💰 Dano Moral", use_container_width=True):
-            selected_example = example_queries[1]
-    
-    with col3:
-        if st.button("📋 Serasa/SPC", use_container_width=True):
-            selected_example = example_queries[2]
-    
-    with col4:
-        if st.button("⚖️ Condenação", use_container_width=True):
-            selected_example = example_queries[3]
-    
-    # Usar query selecionada se houver
-    if selected_example:
-        query = selected_example
-        st.rerun()
-    
-    # Executar busca
-    if search_button or selected_example:
-        if not query.strip():
-            st.error("❌ Por favor, digite uma consulta!")
-            return
-        
-        try:
-            # Carregar sistema de busca
-            search_engine = load_search_engine()
-            
-            # Executar busca
-            with st.spinner(f'🔍 Buscando por: "{query}"...'):
-                results = search_engine.search(query, top_k=5)
-            
-            # Exibir resultados
-            st.divider()
-            st.markdown("## 📊 Resultados da Busca")
-            display_results(results)
-            
-        except Exception as e:
-            st.error(f"❌ Erro ao realizar busca: {str(e)}")
-    
-    # Sidebar com informações
+    st.session_state.favorites.insert(0, favorite)
+
+# ==================== SIDEBAR ====================
+
+def render_sidebar():
+    """Renderiza sidebar com estatísticas e configurações"""
     with st.sidebar:
-        st.markdown("## ℹ️ Sobre o Sistema")
+        st.markdown("## 📊 Dashboard")
         
-        st.markdown("""
-        **📚 Base de Dados:**
-        - 10 acórdãos do TJSP
-        - Tema: Negativação Indevida
-        - 209 trechos indexados
+        # Estatísticas principais
+        stats = st.session_state.search_stats
         
-        **🔧 Tecnologia:**
-        - Busca semântica
-        - Sentence Transformers
-        - Embeddings de 384 dimensões
+        # Cards de estatísticas
+        st.markdown(f"""
+        <div class="stat-card">
+            <h3 style="margin: 0;">📈 Hoje</h3>
+            <h2 style="margin: 5px 0;">{stats['searches_today']}</h2>
+            <p style="margin: 0;">buscas realizadas</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        **🎯 Como usar:**
-        1. Digite sua pergunta
-        2. Clique em "Buscar"
-        3. Analise os resultados por relevância
+        st.markdown(f"""
+        <div class="stat-card">
+            <h3 style="margin: 0;">⚡ Tempo Médio</h3>
+            <h2 style="margin: 5px 0;">{stats['avg_response_time']:.1f}s</h2>
+            <p style="margin: 0;">por consulta</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        **💡 Dicas:**
-        - Use termos jurídicos específicos
-        - Combine palavras-chave
-        - Scores >0.5 são mais relevantes
-        """)
+        # Taxa de sucesso TJSP
+        if stats['realtime_searches'] > 0:
+            success_rate = (stats['successful_realtime'] / stats['realtime_searches']) * 100
+            st.markdown(f"""
+            <div class="stat-card">
+                <h3 style="margin: 0;">🎯 Taxa TJSP</h3>
+                <h2 style="margin: 5px 0;">{success_rate:.0f}%</h2>
+                <p style="margin: 0;">de sucesso</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.divider()
         
-        st.markdown("## 📈 Estatísticas")
+        # Status do sistema
+        st.markdown("## 🔧 Status do Sistema")
+        
+        # Status TJSP
+        status = st.session_state.tjsp_status
+        if status == 'online':
+            st.success("🟢 **TJSP Online**\nConectado ao site oficial")
+        elif status == 'local':
+            st.warning("🟡 **Modo Local**\nUsando base indexada")
+        else:
+            st.info("⚪ **Status Desconhecido**\nAinda não testado")
+        
+        # Botão para testar conexão
+        if st.button("🔄 Testar TJSP", use_container_width=True):
+            test_tjsp_connection()
+        
+        st.divider()
+        
+        # Histórico de buscas
+        if st.session_state.search_history:
+            st.markdown("## 🕒 Histórico Recente")
+            
+            for i, search in enumerate(st.session_state.search_history[:5]):
+                with st.expander(f"🔍 {search['query'][:20]}...", expanded=False):
+                    st.write(f"**Modo:** {search['mode']}")
+                    st.write(f"**Resultados:** {search['results']}")
+                    st.write(f"**Tempo:** {search['time']:.1f}s")
+                    st.write(f"**Quando:** {search['timestamp'].strftime('%H:%M:%S')}")
+        
+        st.divider()
+        
+        # Configurações
+        st.markdown("## ⚙️ Configurações")
+        
+        if st.button("🗑️ Limpar Histórico", use_container_width=True):
+            st.session_state.search_history = []
+            st.session_state.query_cache = {}
+            st.success("Histórico limpo!")
+        
+        if st.button("📊 Resetar Estatísticas", use_container_width=True):
+            st.session_state.search_stats = {
+                'total_searches': 0,
+                'local_searches': 0,
+                'realtime_searches': 0,
+                'successful_realtime': 0,
+                'avg_response_time': 0,
+                'searches_today': 0,
+                'last_reset': datetime.now().date()
+            }
+            st.success("Estatísticas resetadas!")
+
+def test_tjsp_connection():
+    """Testa conexão com TJSP"""
+    with st.spinner("🔄 Testando conexão com TJSP..."):
         try:
-            search_engine = load_search_engine()
-            st.metric("Documentos", "10")
-            st.metric("Chunks", len(search_engine.chunks))
-            st.metric("Modelo", "all-MiniLM-L6-v2")
-        except:
-            st.info("Sistema carregando...")
+            engine = load_realtime_search_engine()
+            test_results = engine.get_relevant_chunks("teste conexao")
+            
+            if test_results and test_results[0].get('source') != 'local_data':
+                st.session_state.tjsp_status = 'online'
+                st.success("🟢 TJSP Online!")
+            else:
+                st.session_state.tjsp_status = 'local'
+                st.warning("🟡 TJSP indisponível - usando cache")
+                
+        except Exception as e:
+            st.session_state.tjsp_status = 'offline'
+            st.error(f"🔴 Erro na conexão: {str(e)}")
+
+# ==================== FUNÇÃO PRINCIPAL ====================
+
+def main():
+    """Função principal da aplicação"""
+    # Inicializar estado
+    init_session_state()
+    
+    # Renderizar interface
+    render_header()
+    
+    # Layout principal
+    col_main, col_side = st.columns([3, 1])
+    
+    with col_main:
+        # Modo de busca
+        search_mode = render_search_mode_toggle()
+        
+        st.divider()
+        
+        # Consultas de exemplo
+        render_example_queries()
+        
+        st.divider()
+        
+        # Campo de busca
+        query, search_clicked = render_search_input()
+        
+        # Executar busca
+        if search_clicked and query.strip():
+            with st.container():
+                st.markdown("## 📊 Resultados da Busca")
+                results, response_time = perform_search_with_progress(query, search_mode)
+                
+                if results:
+                    render_results(results, search_mode, response_time)
+        
+        elif search_clicked:
+            st.error("❌ Por favor, digite uma consulta!")
+    
+    # Sidebar sempre visível
+    render_sidebar()
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #666; padding: 20px;'>
+        <p><strong>🏛️ Sistema Premium de Jurisprudência TJSP</strong></p>
+        <p>🤖 Powered by Sentence Transformers | 🔍 Busca Semântica + Web Scraping</p>
+        <p>⚖️ Desenvolvido para profissionais do Direito</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
