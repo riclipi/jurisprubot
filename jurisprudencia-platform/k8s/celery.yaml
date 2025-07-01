@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: jurisprudencia
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: celery-worker
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: jurisprudencia/api:latest
+          command: ["celery"]
+          args: ["-A", "src.pipeline.celery_app", "worker", "--loglevel=info", "--queues=scraping,processing,embeddings,default"]
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+            - name: REDIS_URL
+              value: "redis://$(REDIS_HOST):$(REDIS_PORT)/0"
+          envFrom:
+            - configMapRef:
+                name: jurisprudencia-config
+            - secretRef:
+                name: jurisprudencia-secrets
+          volumeMounts:
+            - name: pdf-storage
+              mountPath: /app/data/pdfs
+            - name: logs
+              mountPath: /app/logs
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+      volumes:
+        - name: pdf-storage
+          persistentVolumeClaim:
+            claimName: pdf-storage-pvc
+        - name: logs
+          emptyDir: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: jurisprudencia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-beat
+  template:
+    metadata:
+      labels:
+        app: celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: jurisprudencia/api:latest
+          command: ["celery"]
+          args: ["-A", "src.pipeline.celery_app", "beat", "--loglevel=info"]
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+            - name: REDIS_URL
+              value: "redis://$(REDIS_HOST):$(REDIS_PORT)/0"
+          envFrom:
+            - configMapRef:
+                name: jurisprudencia-config
+            - secretRef:
+                name: jurisprudencia-secrets
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+      volumes:
+        - name: logs
+          emptyDir: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flower
+  namespace: jurisprudencia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flower
+  template:
+    metadata:
+      labels:
+        app: flower
+    spec:
+      containers:
+        - name: flower
+          image: jurisprudencia/api:latest
+          command: ["celery"]
+          args: ["-A", "src.pipeline.celery_app", "flower", "--port=5555"]
+          ports:
+            - containerPort: 5555
+          env:
+            - name: CELERY_BROKER_URL
+              value: "redis://$(REDIS_HOST):$(REDIS_PORT)/0"
+          envFrom:
+            - configMapRef:
+                name: jurisprudencia-config
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flower-service
+  namespace: jurisprudencia
+spec:
+  ports:
+    - port: 5555
+      targetPort: 5555
+  selector:
+    app: flower
+  type: ClusterIP

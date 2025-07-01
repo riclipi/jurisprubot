@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector
+  postgres:
+    image: ankane/pgvector:v0.5.1
+    container_name: jurisprudencia-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-jurisprudencia}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-jurisprudencia123}
+      POSTGRES_DB: ${DB_NAME:-jurisprudencia_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/database/init_pgvector.sql:/docker-entrypoint-initdb.d/01-init-pgvector.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-jurisprudencia}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery
+  redis:
+    image: redis:7-alpine
+    container_name: jurisprudencia-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jurisprudencia-api
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-jurisprudencia}:${DB_PASSWORD:-jurisprudencia123}@postgres:5432/${DB_NAME:-jurisprudencia_db}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-change-in-production}
+      PYTHONPATH: /app
+    volumes:
+      - ./data/pdfs:/app/data/pdfs
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Streamlit Frontend
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jurisprudencia-streamlit
+    environment:
+      API_URL: http://api:8000
+      PYTHONPATH: /app
+    volumes:
+      - ./src:/app/src
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    command: ["streamlit", "run", "src/interface/streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jurisprudencia-celery-worker
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-jurisprudencia}:${DB_PASSWORD:-jurisprudencia123}@postgres:5432/${DB_NAME:-jurisprudencia_db}
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app
+    volumes:
+      - ./data/pdfs:/app/data/pdfs
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "src.pipeline.celery_app", "worker", "--loglevel=info", "--queues=scraping,processing,embeddings,default"]
+
+  # Celery Beat Scheduler
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jurisprudencia-celery-beat
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-jurisprudencia}:${DB_PASSWORD:-jurisprudencia123}@postgres:5432/${DB_NAME:-jurisprudencia_db}
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "src.pipeline.celery_app", "beat", "--loglevel=info"]
+
+  # Flower - Celery Monitoring
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jurisprudencia-flower
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      FLOWER_PORT: 5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    command: ["celery", "-A", "src.pipeline.celery_app", "flower", "--port=5555"]
+
+  # Nginx Reverse Proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: jurisprudencia-nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+      - streamlit
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: jurisprudencia-network

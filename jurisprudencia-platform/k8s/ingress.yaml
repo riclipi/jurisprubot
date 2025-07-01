@@ -1,0 +1,53 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jurisprudencia-ingress
+  namespace: jurisprudencia
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+spec:
+  tls:
+    - hosts:
+        - api.jurisprudencia.example.com
+        - app.jurisprudencia.example.com
+        - flower.jurisprudencia.example.com
+      secretName: jurisprudencia-tls
+  rules:
+    # API
+    - host: api.jurisprudencia.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 8000
+    
+    # Streamlit App
+    - host: app.jurisprudencia.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: streamlit-service
+                port:
+                  number: 8501
+    
+    # Flower (Celery monitoring)
+    - host: flower.jurisprudencia.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: flower-service
+                port:
+                  number: 5555

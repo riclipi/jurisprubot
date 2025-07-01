@@ -1,0 +1,90 @@
+{
+  "timestamp": "2025-07-01T14:48:39.136665",
+  "total_arquivos": 10,
+  "sucessos": 10,
+  "erros": 0,
+  "tempo_total_segundos": 28.4,
+  "diretorio_download": "data/raw_pdfs",
+  "resultados": [
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17584819.pdf",
+      "tamanho": 349956,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17584819.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17584819&cdForo=0",
+      "descricao": "Negativação indevida - Danos morais - R$ 10.000,00"
+    },
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17583742.pdf",
+      "tamanho": 406704,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17583742.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17583742&cdForo=0",
+      "descricao": "Negativação indevida - Inexistência de débito"
+    },
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17582665.pdf",
+      "tamanho": 340488,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17582665.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17582665&cdForo=0",
+      "descricao": "Negativação indevida - Fraude - Danos morais"
+    },
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17581588.pdf",
+      "tamanho": 481343,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17581588.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17581588&cdForo=0",
+      "descricao": "Negativação indevida - Serasa/SPC - Indenização"
+    },
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17580511.pdf",
+      "tamanho": 368068,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17580511.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17580511&cdForo=0",
+      "descricao": "Negativação indevida - Cartão de crédito"
+    },
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17579434.pdf",
+      "tamanho": 308178,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17579434.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17579434&cdForo=0",
+      "descricao": "Negativação indevida - Telefonia - Danos morais"
+    },
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17578357.pdf",
+      "tamanho": 620903,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17578357.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17578357&cdForo=0",
+      "descricao": "Negativação indevida - Banco - Conta encerrada"
+    },
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17577280.pdf",
+      "tamanho": 259080,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17577280.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17577280&cdForo=0",
+      "descricao": "Negativação indevida - Cobrança indevida"
+    },
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17576203.pdf",
+      "tamanho": 303738,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17576203.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17576203&cdForo=0",
+      "descricao": "Negativação indevida - Débito quitado"
+    },
+    {
+      "status": "sucesso",
+      "arquivo": "acordao_negativacao_indevida_17575126.pdf",
+      "tamanho": 347099,
+      "caminho": "data/raw_pdfs/acordao_negativacao_indevida_17575126.pdf",
+      "url": "https://esaj.tjsp.jus.br/cjsg/getArquivo.do?cdAcordao=17575126&cdForo=0",
+      "descricao": "Negativação indevida - Consumidor - R$ 8.000,00"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+# Pipeline module for real-time data processing with Celery

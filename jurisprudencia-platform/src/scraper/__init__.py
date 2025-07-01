@@ -1,0 +1,1 @@
+"""Scraper module for collecting jurisprudence data."""

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamlit
+  namespace: jurisprudencia
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: streamlit
+  template:
+    metadata:
+      labels:
+        app: streamlit
+    spec:
+      containers:
+        - name: streamlit
+          image: jurisprudencia/api:latest
+          command: ["streamlit"]
+          args: ["run", "src/interface/streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+          ports:
+            - containerPort: 8501
+          env:
+            - name: API_URL
+              value: "http://api-service:8000"
+          envFrom:
+            - configMapRef:
+                name: jurisprudencia-config
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamlit-service
+  namespace: jurisprudencia
+spec:
+  ports:
+    - port: 8501
+      targetPort: 8501
+  selector:
+    app: streamlit
+  type: ClusterIP
