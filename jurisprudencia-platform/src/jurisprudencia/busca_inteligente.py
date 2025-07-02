@@ -80,6 +80,7 @@ class BuscaInteligente:
         self._inicializar_sistemas()
         self._carregar_base_conhecimento()
         self._configurar_parametros()
+        self._inicializar_brlaw_mcp()
     
     def setup_logging(self):
         """Configura sistema de logs"""
@@ -182,7 +183,19 @@ class BuscaInteligente:
             "excluir_agravos_simples": True
         }
     
-    def buscar_jurisprudencia_inteligente(self, consulta: str, tipo_acao: str, 
+    def _inicializar_brlaw_mcp(self):
+        """Inicializa integração com BRLaw MCP"""
+        try:
+            from src.mcp_brlaw.brlaw_integration import BRLawMCPIntegration
+            self.brlaw_mcp = BRLawMCPIntegration()
+            self.brlaw_disponivel = True
+            self.logger.info("BRLaw MCP integrado com sucesso")
+        except Exception as e:
+            self.logger.warning(f"BRLaw MCP não disponível: {e}")
+            self.brlaw_mcp = None
+            self.brlaw_disponivel = False
+    
+    async def buscar_jurisprudencia_inteligente(self, consulta: str, tipo_acao: str, 
                                         tribunal: TipoTribunal = TipoTribunal.TODOS) -> AnaliseJurisprudencial:
         """
         🎯 BUSCA INTELIGENTE DE JURISPRUDÊNCIA
@@ -207,6 +220,11 @@ class BuscaInteligente:
         if self.busca_tempo_real:
             precedentes_tempo_real = self._buscar_tempo_real_inteligente(consulta_otimizada, tipo_acao)
             precedentes_brutos.extend(precedentes_tempo_real)
+        
+        # 2.5. Busca BRLaw MCP (STJ/TST oficiais) - NOVA FUNCIONALIDADE PREMIUM
+        if self.brlaw_disponivel:
+            precedentes_brlaw = await self._buscar_brlaw_mcp_inteligente(consulta_otimizada, tipo_acao)
+            precedentes_brutos.extend(precedentes_brlaw)
         
         # 3. Buscar súmulas específicas
         sumulas_aplicaveis = self._buscar_sumulas_aplicaveis(consulta, tipo_acao)
@@ -345,6 +363,65 @@ class BuscaInteligente:
             
         except Exception as e:
             self.logger.error(f"Erro na busca tempo real: {e}")
+            return []
+    
+    async def _buscar_brlaw_mcp_inteligente(self, consulta: str, tipo_acao: str) -> List[Dict]:
+        """Busca inteligente via BRLaw MCP (STJ/TST oficiais)"""
+        
+        try:
+            # Determinar se deve buscar TST
+            incluir_tst = any(termo in tipo_acao.lower() for termo in [
+                "trabalho", "trabalhista", "emprego", "empregado", "empregador",
+                "horas extras", "adicional", "fgts", "rescisão"
+            ])
+            
+            # Buscar precedentes
+            resultados_brlaw = await self.brlaw_mcp.buscar_precedentes_completo(
+                consulta, 
+                incluir_stj=True, 
+                incluir_tst=incluir_tst,
+                max_paginas=1  # Limitar para performance
+            )
+            
+            precedentes = []
+            
+            # Converter precedentes STJ
+            for precedente_stj in resultados_brlaw.get("stj", []):
+                precedente_dict = {
+                    "id_precedente": f"BRLAW_STJ_{hash(precedente_stj.ementa)[:12]}",
+                    "tribunal": "STJ",
+                    "numero_processo": "N/A",
+                    "relator": "N/A",
+                    "data_julgamento": precedente_stj.data_consulta,
+                    "ementa": precedente_stj.ementa[:500],
+                    "acordao_completo": precedente_stj.ementa,
+                    "score_similaridade": precedente_stj.relevancia_score,
+                    "fonte": "brlaw_mcp_stj",
+                    "url_fonte": None
+                }
+                precedentes.append(precedente_dict)
+            
+            # Converter precedentes TST
+            for precedente_tst in resultados_brlaw.get("tst", []):
+                precedente_dict = {
+                    "id_precedente": f"BRLAW_TST_{hash(precedente_tst.ementa)[:12]}",
+                    "tribunal": "TST",
+                    "numero_processo": "N/A",
+                    "relator": "N/A", 
+                    "data_julgamento": precedente_tst.data_consulta,
+                    "ementa": precedente_tst.ementa[:500],
+                    "acordao_completo": precedente_tst.ementa,
+                    "score_similaridade": precedente_tst.relevancia_score,
+                    "fonte": "brlaw_mcp_tst",
+                    "url_fonte": None
+                }
+                precedentes.append(precedente_dict)
+            
+            self.logger.info(f"BRLaw MCP: {len(precedentes)} precedentes encontrados")
+            return precedentes
+            
+        except Exception as e:
+            self.logger.error(f"Erro na busca BRLaw MCP: {e}")
             return []
     
     def _converter_resultado_local(self, resultado: Dict, consulta: str) -> Optional[Dict]:
