@@ -11,6 +11,7 @@ import json
 from datetime import datetime, timedelta
 import hashlib
 import base64
+from pathlib import Path
 sys.path.append('.')
 from src.rag.simple_search import SimpleSearchEngine
 from src.scraper.realtime_search import RealtimeJurisprudenceSearch
@@ -532,94 +533,93 @@ def add_to_favorites(result):
 
 # ==================== SIDEBAR ====================
 
-def render_sidebar():
-    """Renderiza sidebar com estatísticas e configurações"""
-    with st.sidebar:
-        st.markdown("## 📊 Dashboard")
-        
-        # Estatísticas principais
-        stats = st.session_state.search_stats
-        
-        # Cards de estatísticas
+def render_sidebar_content():
+    """Conteúdo da sidebar (separado para reutilização)"""
+    st.markdown("## 📊 Dashboard")
+    
+    # Estatísticas principais
+    stats = st.session_state.search_stats
+    
+    # Cards de estatísticas
+    st.markdown(f"""
+    <div class="stat-card">
+        <h3 style="margin: 0;">📈 Hoje</h3>
+        <h2 style="margin: 5px 0;">{stats['searches_today']}</h2>
+        <p style="margin: 0;">buscas realizadas</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <div class="stat-card">
+        <h3 style="margin: 0;">⚡ Tempo Médio</h3>
+        <h2 style="margin: 5px 0;">{stats['avg_response_time']:.1f}s</h2>
+        <p style="margin: 0;">por consulta</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Taxa de sucesso TJSP
+    if stats['realtime_searches'] > 0:
+        success_rate = (stats['successful_realtime'] / stats['realtime_searches']) * 100
         st.markdown(f"""
         <div class="stat-card">
-            <h3 style="margin: 0;">📈 Hoje</h3>
-            <h2 style="margin: 5px 0;">{stats['searches_today']}</h2>
-            <p style="margin: 0;">buscas realizadas</p>
+            <h3 style="margin: 0;">🎯 Taxa TJSP</h3>
+            <h2 style="margin: 5px 0;">{success_rate:.0f}%</h2>
+            <p style="margin: 0;">de sucesso</p>
         </div>
         """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Status do sistema
+    st.markdown("## 🔧 Status do Sistema")
+    
+    # Status TJSP
+    status = st.session_state.tjsp_status
+    if status == 'online':
+        st.success("🟢 **TJSP Online**\nConectado ao site oficial")
+    elif status == 'local':
+        st.warning("🟡 **Modo Local**\nUsando base indexada")
+    else:
+        st.info("⚪ **Status Desconhecido**\nAinda não testado")
+    
+    # Botão para testar conexão
+    if st.button("🔄 Testar TJSP", use_container_width=True):
+        test_tjsp_connection()
+    
+    st.divider()
+    
+    # Histórico de buscas
+    if st.session_state.search_history:
+        st.markdown("## 🕒 Histórico Recente")
         
-        st.markdown(f"""
-        <div class="stat-card">
-            <h3 style="margin: 0;">⚡ Tempo Médio</h3>
-            <h2 style="margin: 5px 0;">{stats['avg_response_time']:.1f}s</h2>
-            <p style="margin: 0;">por consulta</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Taxa de sucesso TJSP
-        if stats['realtime_searches'] > 0:
-            success_rate = (stats['successful_realtime'] / stats['realtime_searches']) * 100
-            st.markdown(f"""
-            <div class="stat-card">
-                <h3 style="margin: 0;">🎯 Taxa TJSP</h3>
-                <h2 style="margin: 5px 0;">{success_rate:.0f}%</h2>
-                <p style="margin: 0;">de sucesso</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.divider()
-        
-        # Status do sistema
-        st.markdown("## 🔧 Status do Sistema")
-        
-        # Status TJSP
-        status = st.session_state.tjsp_status
-        if status == 'online':
-            st.success("🟢 **TJSP Online**\nConectado ao site oficial")
-        elif status == 'local':
-            st.warning("🟡 **Modo Local**\nUsando base indexada")
-        else:
-            st.info("⚪ **Status Desconhecido**\nAinda não testado")
-        
-        # Botão para testar conexão
-        if st.button("🔄 Testar TJSP", use_container_width=True):
-            test_tjsp_connection()
-        
-        st.divider()
-        
-        # Histórico de buscas
-        if st.session_state.search_history:
-            st.markdown("## 🕒 Histórico Recente")
-            
-            for i, search in enumerate(st.session_state.search_history[:5]):
-                with st.expander(f"🔍 {search['query'][:20]}...", expanded=False):
-                    st.write(f"**Modo:** {search['mode']}")
-                    st.write(f"**Resultados:** {search['results']}")
-                    st.write(f"**Tempo:** {search['time']:.1f}s")
-                    st.write(f"**Quando:** {search['timestamp'].strftime('%H:%M:%S')}")
-        
-        st.divider()
-        
-        # Configurações
-        st.markdown("## ⚙️ Configurações")
-        
-        if st.button("🗑️ Limpar Histórico", use_container_width=True):
-            st.session_state.search_history = []
-            st.session_state.query_cache = {}
-            st.success("Histórico limpo!")
-        
-        if st.button("📊 Resetar Estatísticas", use_container_width=True):
-            st.session_state.search_stats = {
-                'total_searches': 0,
-                'local_searches': 0,
-                'realtime_searches': 0,
-                'successful_realtime': 0,
-                'avg_response_time': 0,
-                'searches_today': 0,
-                'last_reset': datetime.now().date()
-            }
-            st.success("Estatísticas resetadas!")
+        for i, search in enumerate(st.session_state.search_history[:5]):
+            with st.expander(f"🔍 {search['query'][:20]}...", expanded=False):
+                st.write(f"**Modo:** {search['mode']}")
+                st.write(f"**Resultados:** {search['results']}")
+                st.write(f"**Tempo:** {search['time']:.1f}s")
+                st.write(f"**Quando:** {search['timestamp'].strftime('%H:%M:%S')}")
+    
+    st.divider()
+    
+    # Configurações
+    st.markdown("## ⚙️ Configurações")
+    
+    if st.button("🗑️ Limpar Histórico", use_container_width=True):
+        st.session_state.search_history = []
+        st.session_state.query_cache = {}
+        st.success("Histórico limpo!")
+    
+    if st.button("📊 Resetar Estatísticas", use_container_width=True):
+        st.session_state.search_stats = {
+            'total_searches': 0,
+            'local_searches': 0,
+            'realtime_searches': 0,
+            'successful_realtime': 0,
+            'avg_response_time': 0,
+            'searches_today': 0,
+            'last_reset': datetime.now().date()
+        }
+        st.success("Estatísticas resetadas!")
 
 def test_tjsp_connection():
     """Testa conexão com TJSP"""
@@ -639,6 +639,39 @@ def test_tjsp_connection():
             st.session_state.tjsp_status = 'offline'
             st.error(f"🔴 Erro na conexão: {str(e)}")
 
+def render_mcp_interface():
+    """Renderizar interface MCP (funcionalidades extras)"""
+    try:
+        # Importar módulo MCP
+        from src.interface.mcp_tab import render_mcp_tab
+        render_mcp_tab()
+    except ImportError as e:
+        st.error("⚠️ Módulos MCP não estão disponíveis")
+        st.info("Certifique-se de que os arquivos MCP estão instalados corretamente")
+        
+        # Oferecer funcionalidade básica como fallback
+        st.markdown("### 📁 Gestão Básica de Documentos")
+        st.info("Interface MCP completa não disponível. Funcionalidade básica:")
+        
+        # Upload simples como fallback
+        uploaded_file = st.file_uploader("Upload de documento", type=['txt', 'pdf'])
+        if uploaded_file:
+            st.success(f"Arquivo recebido: {uploaded_file.name}")
+            
+            # Salvar na pasta principal
+            docs_path = Path("data/documents/juridicos")
+            docs_path.mkdir(parents=True, exist_ok=True)
+            
+            file_path = docs_path / uploaded_file.name
+            with open(file_path, 'wb') as f:
+                f.write(uploaded_file.getvalue())
+            
+            st.success(f"✅ Arquivo salvo em: {file_path}")
+    
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar interface MCP: {e}")
+        st.info("A aba principal de busca continua funcionando normalmente")
+
 # ==================== FUNÇÃO PRINCIPAL ====================
 
 def main():
@@ -649,37 +682,46 @@ def main():
     # Renderizar interface
     render_header()
     
-    # Layout principal
-    col_main, col_side = st.columns([3, 1])
+    # NOVA FUNCIONALIDADE: Tabs principais para separar Busca e MCP
+    main_tab1, main_tab2 = st.tabs(["🔍 Busca Jurisprudência", "📁 Gestão MCP"])
     
-    with col_main:
-        # Modo de busca
-        search_mode = render_search_mode_toggle()
+    with main_tab1:
+        # Layout original da busca (mantido intacto)
+        col_main, col_side = st.columns([3, 1])
         
-        st.divider()
+        with col_main:
+            # Modo de busca
+            search_mode = render_search_mode_toggle()
+            
+            st.divider()
+            
+            # Consultas de exemplo
+            render_example_queries()
+            
+            st.divider()
+            
+            # Campo de busca
+            query, search_clicked = render_search_input()
+            
+            # Executar busca
+            if search_clicked and query.strip():
+                with st.container():
+                    st.markdown("## 📊 Resultados da Busca")
+                    results, response_time = perform_search_with_progress(query, search_mode)
+                    
+                    if results:
+                        render_results(results, search_mode, response_time)
+            
+            elif search_clicked:
+                st.error("❌ Por favor, digite uma consulta!")
         
-        # Consultas de exemplo
-        render_example_queries()
-        
-        st.divider()
-        
-        # Campo de busca
-        query, search_clicked = render_search_input()
-        
-        # Executar busca
-        if search_clicked and query.strip():
-            with st.container():
-                st.markdown("## 📊 Resultados da Busca")
-                results, response_time = perform_search_with_progress(query, search_mode)
-                
-                if results:
-                    render_results(results, search_mode, response_time)
-        
-        elif search_clicked:
-            st.error("❌ Por favor, digite uma consulta!")
+        # Sidebar sempre visível na aba de busca
+        with col_side:
+            render_sidebar_content()
     
-    # Sidebar sempre visível
-    render_sidebar()
+    with main_tab2:
+        # Nova aba MCP (funcionalidades extras)
+        render_mcp_interface()
     
     # Footer
     st.markdown("---")

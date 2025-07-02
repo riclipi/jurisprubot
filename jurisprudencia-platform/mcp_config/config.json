@@ -1,0 +1,12 @@
+{
+  "mcp_servers": {
+    "filesystem": {
+      "description": "Acesso aos documentos jurídicos",
+      "path": "data/documents/juridicos"
+    },
+    "cerebra_legal": {
+      "description": "Análise jurídica avançada",
+      "path": "/workspaces/jurisprubot/mcp-cerebra-legal-server/build/index.js"
+    }
+  }
+}

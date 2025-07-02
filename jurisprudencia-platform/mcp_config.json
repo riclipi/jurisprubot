@@ -1,0 +1,18 @@
+{
+  "mcp_settings": {
+    "auto_organize": true,
+    "backup_enabled": true,
+    "pdf_processing": true,
+    "max_file_size_mb": 100,
+    "supported_formats": [
+      "txt",
+      "pdf"
+    ]
+  },
+  "directories": {
+    "documents": "data/mcp_documents",
+    "organized": "data/mcp_organized",
+    "backups": "data/mcp_backups",
+    "cache": "data/pdf_cache"
+  }
+}
