@@ -723,6 +723,21 @@ def main():
         # Nova aba MCP (funcionalidades extras)
         render_mcp_interface()
     
+    # NOVA FUNCIONALIDADE: Botão para Interface Premium
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        if st.button("🚀 ACESSAR INTERFACE PREMIUM", type="primary", use_container_width=True):
+            st.markdown("""
+            <div style='text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; color: white; margin: 20px 0;'>
+                <h2>🚀 INTERFACE PREMIUM DISPONÍVEL!</h2>
+                <p>Execute: <code>streamlit run src/interface/interface_premium.py</code></p>
+                <p><strong>Funcionalidades Premium:</strong></p>
+                <p>📋 Análise Estruturada | 📝 Gerador de Minutas | 🧠 Análise Jurídica | 🔍 Busca Inteligente</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
     # Footer
     st.markdown("---")
     st.markdown("""
