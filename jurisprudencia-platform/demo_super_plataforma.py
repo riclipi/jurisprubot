@@ -6,6 +6,7 @@ Sistema de demonstração integrada de todas as funcionalidades avançadas
 import asyncio
 import sys
 import time
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -32,7 +33,8 @@ from src.pje_super.gerador_minutas_inteligente import (
     GeradorMinutasInteligente, 
     ConfiguracaoMinuta, 
     TipoMinuta,
-    EstiloRedacao
+    EstiloRedacao,
+    NivelComplexidade
 )
 from src.pje_super.dashboard_executivo import DashboardExecutivo, PeriodoAnalise
 
@@ -85,36 +87,36 @@ async def demo_detalhada_componentes():
     print(f"\n📡 COMPONENTE 2: CLIENTE UNIFICADO PJE")
     print("-" * 50)
     
-    async with UnifiedPJeClient() as client:
-        # Estatísticas dos tribunais
-        stats_tribunais = client.obter_estatisticas_tribunais()
-        print(f"📈 Estatísticas do sistema:")
-        print(f"   • Total tribunais: {stats_tribunais['total_tribunais_configurados']}")
-        print(f"   • REST: {stats_tribunais['tribunais_por_tecnologia']['rest']}")
-        print(f"   • SOAP: {stats_tribunais['tribunais_por_tecnologia']['soap']}")
-        print(f"   • Scraping: {stats_tribunais['tribunais_por_tecnologia']['scraping']}")
-        
-        # Teste de conectividade
-        print(f"\n🌐 Testando conectividade...")
-        conectividade = await client.testar_conectividade_tribunais()
-        
-        tribunais_online = [t for t, status in conectividade.items() if 'ONLINE' in status]
-        print(f"   ✅ Tribunais online: {len(tribunais_online)}")
-        
-        for tribunal, status in list(conectividade.items())[:5]:
-            status_emoji = "✅" if "ONLINE" in status else "⚠️" if "PROBLEMS" in status else "❌"
-            print(f"   {status_emoji} {tribunal}: {status}")
-        
-        # Simulação de consulta
-        print(f"\n🔍 Simulando consulta de processo...")
-        numero_teste = "1234567-89.2023.8.26.0001"
-        
-        # Detectar tribunal e simular consulta
-        tribunal_detectado = client._detectar_tribunal_cnj(numero_teste)
-        if tribunal_detectado:
-            print(f"   🎯 Tribunal detectado: {tribunal_detectado}")
-            print(f"   📡 Tecnologias disponíveis: REST → SOAP → Scraping")
-            print(f"   ⚡ Fallback automático configurado")
+    client = UnifiedPJeClient()
+    # Estatísticas dos tribunais
+    stats_tribunais = client.obter_estatisticas()
+    print(f"📈 Estatísticas do sistema:")
+    print(f"   • Total tribunais: {stats_tribunais['total_tribunais']}")
+    print(f"   • REST: {stats_tribunais['cobertura_rest']}")
+    print(f"   • SOAP: {stats_tribunais['cobertura_soap']}")
+    print(f"   • Tribunais online: {stats_tribunais['tribunais_online']}")
+    
+    # Teste de conectividade
+    print(f"\n🌐 Testando conectividade...")
+    conectividade = await client.testar_tribunais()
+    
+    tribunais_online = [t for t, status in conectividade.items() if status.value == 'online']
+    print(f"   ✅ Tribunais online: {len(tribunais_online)}")
+    
+    for tribunal, status in list(conectividade.items())[:5]:
+        status_emoji = "✅" if status.value == 'online' else "⚠️" if status.value == 'parcial' else "❌"
+        print(f"   {status_emoji} {tribunal}: {status.value}")
+    
+    # Simulação de consulta
+    print(f"\n🔍 Simulando consulta de processo...")
+    numero_teste = "1234567-89.2023.8.26.0001"
+    
+    # Detectar tribunal e simular consulta
+    tribunal_detectado = client._detectar_tribunal_cnj(numero_teste)
+    if tribunal_detectado:
+        print(f"   🎯 Tribunal detectado: {tribunal_detectado}")
+        print(f"   📡 Tecnologias disponíveis: REST → SOAP → Scraping")
+        print(f"   ⚡ Fallback automático configurado")
     
     # 3. DEMO DETALHADA: ANÁLISE PROCESSUAL IA
     print(f"\n🧠 COMPONENTE 3: ANÁLISE PROCESSUAL IA")
@@ -228,7 +230,7 @@ async def demo_detalhada_componentes():
             tipo=tipo_minuta,
             estilo=estilo,
             incluir_jurisprudencia=True,
-            complexidade=NivelComplexidade.MEDIO if 'NivelComplexidade' in globals() else None
+            complexidade=NivelComplexidade.MEDIO
         )
         
         inicio_geracao = time.time()
@@ -341,7 +343,6 @@ async def demo_detalhada_componentes():
     print("📈 Simulando coleta de métricas...")
     
     # Simular métricas variadas
-    import numpy as np
     
     # Registrar métricas dos componentes anteriores
     for i, minuta in enumerate(minutas_geradas):
@@ -363,15 +364,15 @@ async def demo_detalhada_componentes():
     for i in range(20):
         await dashboard.registrar_consulta_processo(
             f"proceso_{i:03d}",
-            np.random.uniform(1.0, 4.0),
-            np.random.random() > 0.1  # 90% sucesso
+            random.uniform(1.0, 4.0),
+            random.random() > 0.1  # 90% sucesso
         )
     
     # Simular métricas de sistema
     await dashboard.registrar_metricas_sistema(
-        np.random.uniform(30, 70),  # CPU
-        np.random.uniform(40, 80),  # Memória
-        np.random.uniform(70, 95)   # Cache hit rate
+        random.uniform(30, 70),  # CPU
+        random.uniform(40, 80),  # Memória
+        random.uniform(70, 95)   # Cache hit rate
     )
     
     print("📊 Gerando relatório executivo...")
@@ -459,8 +460,8 @@ async def demo_casos_uso_reais():
         await asyncio.sleep(0.2)  # Simular tempo de consulta
         
         # Registrar métrica
-        tempo_consulta = np.random.uniform(1.5, 3.0)
-        sucesso = np.random.random() > 0.05
+        tempo_consulta = random.uniform(1.5, 3.0)
+        sucesso = random.random() > 0.05
         await components['dashboard'].registrar_consulta_processo(numero, tempo_consulta, sucesso)
         
         status = "✅ Sucesso" if sucesso else "❌ Erro"
@@ -497,12 +498,12 @@ async def demo_casos_uso_reais():
     print("🔍 Executando análise massiva (simulação rápida)...")
     
     for i in range(50):
-        tipo_acao = np.random.choice(tipos_acao)
+        tipo_acao = random.choice(tipos_acao)
         
         # Simular análise
-        tempo_analise = np.random.uniform(5, 15)
-        qualidade = np.random.uniform(0.7, 0.95)
-        probabilidade_sucesso = np.random.uniform(0.4, 0.9)
+        tempo_analise = random.uniform(5, 15)
+        qualidade = random.uniform(0.7, 0.95)
+        probabilidade_sucesso = random.uniform(0.4, 0.9)
         
         # Acumular estatísticas
         resultados_analise['tempo_total'] += tempo_analise
@@ -555,12 +556,12 @@ async def demo_casos_uso_reais():
     print("🤖 Gerando minutas em lote...")
     
     for i in range(20):
-        tipo_minuta = np.random.choice(tipos_minutas)
-        estilo = np.random.choice(estilos)
+        tipo_minuta = random.choice(tipos_minutas)
+        estilo = random.choice(estilos)
         
         # Simular geração
-        tempo_geracao = np.random.uniform(3, 8)
-        qualidade = np.random.uniform(0.75, 0.95)
+        tempo_geracao = random.uniform(3, 8)
+        qualidade = random.uniform(0.75, 0.95)
         
         tempo_total_geracao += tempo_geracao
         
@@ -584,7 +585,7 @@ async def demo_casos_uso_reais():
             print(f"   📊 Progresso: {i+1}/20 minutas geradas")
     
     # Estatísticas das minutas
-    qualidade_media_lote = np.mean([m['qualidade'] for m in minutas_geradas_lote])
+    qualidade_media_lote = sum(m['qualidade'] for m in minutas_geradas_lote) / len(minutas_geradas_lote) if minutas_geradas_lote else 0
     
     print(f"\n📊 RESULTADOS DA GERAÇÃO EM LOTE:")
     print(f"   • Minutas geradas: {len(minutas_geradas_lote)}")

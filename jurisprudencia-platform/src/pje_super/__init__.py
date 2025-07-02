@@ -8,7 +8,7 @@ from .tribunal_auto_detection import TribunalAutoDetection, detectar_tribunal_cn
 from .download_manager import DownloadManagerAvançado, StatusDownload, baixar_processos_lote
 from .analise_processual_ia import AnaliseProcessualIA, analisar_processo_ia, TipoDocumento
 from .gerador_minutas_inteligente import GeradorMinutasInteligente, gerar_minuta_ia, TipoMinuta
-from .dashboard_executivo import DashboardExecutivo, gerar_dashboard_executivo, PeriodoAnalise
+from .dashboard_executivo import DashboardExecutivo, PeriodoAnalise
 
 __version__ = "1.0.0"
 __author__ = "Equipe Jurisprudência Platform"
@@ -42,7 +42,6 @@ __all__ = [
     
     # Dashboard executivo
     'DashboardExecutivo',
-    'gerar_dashboard_executivo',
     'PeriodoAnalise'
 ]
 
@@ -221,9 +220,9 @@ async def demo_super_plataforma():
         
         # 2. Demo Cliente unificado
         print("\n📡 DEMO: Consulta de processo")
-        async with components['unified_client'] as client:
-            stats_tribunais = client.obter_estatisticas_tribunais()
-            print(f"   📊 Estatísticas: {stats_tribunais['total_tribunais_configurados']} tribunais configurados")
+        client = components['unified_client']
+        stats_tribunais = client.obter_estatisticas()
+        print(f"   📊 Estatísticas: {stats_tribunais['total_tribunais']} tribunais configurados")
         
         # 3. Demo Análise IA
         print("\n🧠 DEMO: Análise processual IA")

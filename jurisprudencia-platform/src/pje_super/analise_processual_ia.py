@@ -79,17 +79,17 @@ class PedidoJudicial:
     """Pedido judicial extraído"""
     descricao: str
     tipo: str  # principal, subsidiario, alternativo
+    confianca: float = 0.0
     valor_monetario: Optional[str] = None
     fundamentacao: List[str] = field(default_factory=list)
-    confianca: float = 0.0
 
 @dataclass
 class MovimentacaoProcessual:
     """Movimentação processual"""
     data: datetime
     tipo: str
-    codigo_cnj: Optional[str] = None
     descricao: str
+    codigo_cnj: Optional[str] = None
     responsavel: Optional[str] = None
     documento_gerado: Optional[str] = None
     metadados: Dict[str, Any] = field(default_factory=dict)
