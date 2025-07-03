@@ -1,0 +1,15 @@
+{
+  "args": {}, 
+  "data": "", 
+  "files": {}, 
+  "form": {}, 
+  "headers": {
+    "Accept": "*/*", 
+    "Accept-Encoding": "gzip, deflate", 
+    "Host": "httpbin.org", 
+    "User-Agent": "DownloadManager/1.0 (Plataforma Jur\u00c3\u00addica Avan\u00c3\u00a7ada)", 
+    "X-Amzn-Trace-Id": "Root=1-6865b41e-0584103d28ac7ef55e56ddaf"
+  }, 
+  "origin": "74.249.85.197", 
+  "url": "https://httpbin.org/delay/1"
+}

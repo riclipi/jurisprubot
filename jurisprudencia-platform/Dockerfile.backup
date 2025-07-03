@@ -1,0 +1,37 @@
+FROM alpine:3.18
+
+# Instalar ferramentas necessárias
+RUN apk add --no-cache \
+    bash \
+    postgresql-client \
+    redis \
+    aws-cli \
+    curl \
+    gzip \
+    tar \
+    coreutils \
+    tzdata
+
+# Configurar timezone
+ENV TZ=America/Sao_Paulo
+
+# Criar diretórios
+RUN mkdir -p /backups /scripts
+
+# Copiar script de backup
+COPY scripts/backup.sh /scripts/backup.sh
+RUN chmod +x /scripts/backup.sh
+
+# Criar usuário não-root
+RUN addgroup -g 1000 backup && \
+    adduser -D -u 1000 -G backup backup && \
+    chown -R backup:backup /backups /scripts
+
+# Mudar para usuário não-root
+USER backup
+
+# Volume para backups
+VOLUME ["/backups", "/data"]
+
+# Comando padrão - executar backup a cada 6 horas
+CMD ["sh", "-c", "while true; do /scripts/backup.sh; sleep 21600; done"]

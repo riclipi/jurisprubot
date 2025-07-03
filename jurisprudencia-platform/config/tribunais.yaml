@@ -1,0 +1,289 @@
+# CONFIGURAÇÃO DE TRIBUNAIS - PRODUÇÃO
+# =====================================
+# Este arquivo contém as configurações de todos os tribunais suportados
+# As variáveis ${} devem ser definidas no arquivo .env.production
+
+tribunais:
+  # TRIBUNAIS SUPERIORES
+  stf:
+    nome: "Supremo Tribunal Federal"
+    sigla: "STF"
+    tipo: "supremo"
+    urls:
+      rest: "${STF_REST_URL:-https://api.stf.jus.br}"
+      soap: "${STF_SOAP_URL:-https://ws.stf.jus.br}"
+      base: "${STF_BASE_URL:-https://portal.stf.jus.br}"
+    certificado:
+      tipo: "A3"
+      path: "${STF_CERT_PATH}"
+      senha: "${STF_CERT_PASSWORD}"
+    headers:
+      User-Agent: "Sistema Jurídico Autorizado v1.0"
+      X-Auth-Token: "${STF_AUTH_TOKEN}"
+      Accept: "application/json"
+    rate_limit:
+      requests_por_minuto: 30
+      backoff_multiplier: 2.0
+      max_retries: 3
+    tecnologia_preferida: "rest"
+    fallback: ["soap", "scraping"]
+    
+  stj:
+    nome: "Superior Tribunal de Justiça"
+    sigla: "STJ"
+    tipo: "superior"
+    urls:
+      rest: "${STJ_REST_URL:-https://api.stj.jus.br}"
+      soap: "${STJ_SOAP_URL:-https://ws.stj.jus.br}"
+      base: "${STJ_BASE_URL:-https://www.stj.jus.br}"
+    certificado:
+      tipo: "A3"
+      path: "${STJ_CERT_PATH}"
+      senha: "${STJ_CERT_PASSWORD}"
+    headers:
+      User-Agent: "Sistema Jurídico Autorizado v1.0"
+      X-Auth-Token: "${STJ_AUTH_TOKEN}"
+    rate_limit:
+      requests_por_minuto: 40
+      backoff_multiplier: 2.0
+      max_retries: 3
+    tecnologia_preferida: "soap"
+    fallback: ["rest", "scraping"]
+    
+  tst:
+    nome: "Tribunal Superior do Trabalho"
+    sigla: "TST"
+    tipo: "superior"
+    urls:
+      rest: "${TST_REST_URL:-https://api.tst.jus.br}"
+      soap: "${TST_SOAP_URL:-https://ws.tst.jus.br}"
+      base: "${TST_BASE_URL:-https://www.tst.jus.br}"
+    certificado:
+      tipo: "A3"
+      path: "${TST_CERT_PATH}"
+      senha: "${TST_CERT_PASSWORD}"
+    headers:
+      User-Agent: "Sistema Jurídico Autorizado v1.0"
+      X-Auth-Token: "${TST_AUTH_TOKEN}"
+    rate_limit:
+      requests_por_minuto: 30
+      backoff_multiplier: 2.0
+      max_retries: 3
+    tecnologia_preferida: "rest"
+    fallback: ["soap", "scraping"]
+    
+  # TRIBUNAIS REGIONAIS FEDERAIS
+  trf1:
+    nome: "Tribunal Regional Federal da 1ª Região"
+    sigla: "TRF1"
+    tipo: "federal"
+    jurisdicao: ["DF", "MG", "GO", "TO", "MT", "BA", "PI", "MA", "PA", "AM", "AC", "RR", "RO", "AP"]
+    urls:
+      rest: "${TRF1_REST_URL:-https://pje2g.trf1.jus.br/pje/api}"
+      soap: "${TRF1_SOAP_URL:-https://pje2g.trf1.jus.br/pje/ws}"
+      base: "${TRF1_BASE_URL:-https://pje2g.trf1.jus.br}"
+    certificado:
+      tipo: "A3"
+      path: "${TRF1_CERT_PATH}"
+      senha: "${TRF1_CERT_PASSWORD}"
+    headers:
+      User-Agent: "Sistema Jurídico Autorizado v1.0"
+      X-Auth-Token: "${TRF1_AUTH_TOKEN}"
+      X-Sistema-Origem: "JurisprudenciaPlataform"
+    rate_limit:
+      requests_por_minuto: 20
+      backoff_multiplier: 3.0
+      max_retries: 3
+    tecnologia_preferida: "soap"
+    fallback: ["rest", "scraping"]
+    
+  trf2:
+    nome: "Tribunal Regional Federal da 2ª Região"
+    sigla: "TRF2"
+    tipo: "federal"
+    jurisdicao: ["RJ", "ES"]
+    urls:
+      rest: "${TRF2_REST_URL:-https://pje.trf2.jus.br/pje/api}"
+      soap: "${TRF2_SOAP_URL:-https://pje.trf2.jus.br/pje/ws}"
+      base: "${TRF2_BASE_URL:-https://pje.trf2.jus.br}"
+    certificado:
+      tipo: "A3"
+      path: "${TRF2_CERT_PATH}"
+      senha: "${TRF2_CERT_PASSWORD}"
+    headers:
+      User-Agent: "Sistema Jurídico Autorizado v1.0"
+      X-Auth-Token: "${TRF2_AUTH_TOKEN}"
+    rate_limit:
+      requests_por_minuto: 25
+      backoff_multiplier: 2.5
+      max_retries: 3
+    tecnologia_preferida: "rest"
+    fallback: ["soap", "scraping"]
+    
+  trf3:
+    nome: "Tribunal Regional Federal da 3ª Região"
+    sigla: "TRF3"
+    tipo: "federal"
+    jurisdicao: ["SP", "MS"]
+    urls:
+      rest: "${TRF3_REST_URL:-https://pje.trf3.jus.br/pje/api}"
+      soap: "${TRF3_SOAP_URL:-https://pje.trf3.jus.br/pje/ws}"
+      base: "${TRF3_BASE_URL:-https://pje.trf3.jus.br}"
+    certificado:
+      tipo: "A3"
+      path: "${TRF3_CERT_PATH}"
+      senha: "${TRF3_CERT_PASSWORD}"
+    headers:
+      User-Agent: "Sistema Jurídico Autorizado v1.0"
+      X-Auth-Token: "${TRF3_AUTH_TOKEN}"
+    rate_limit:
+      requests_por_minuto: 30
+      backoff_multiplier: 2.0
+      max_retries: 3
+    tecnologia_preferida: "rest"
+    fallback: ["soap", "scraping"]
+    
+  # TRIBUNAIS DE JUSTIÇA ESTADUAIS
+  tjsp:
+    nome: "Tribunal de Justiça de São Paulo"
+    sigla: "TJSP"
+    tipo: "estadual"
+    uf: "SP"
+    urls:
+      rest: "${TJSP_REST_URL:-https://api.tjsp.jus.br}"
+      soap: "${TJSP_SOAP_URL:-https://ws.tjsp.jus.br}"
+      base: "${TJSP_BASE_URL:-https://esaj.tjsp.jus.br}"
+      consulta: "${TJSP_CONSULTA_URL:-https://esaj.tjsp.jus.br/cpopg/search.do}"
+    certificado:
+      tipo: "A3"
+      path: "${TJSP_CERT_PATH}"
+      senha: "${TJSP_CERT_PASSWORD}"
+    credenciais:
+      cpf_cnpj: "${TJSP_CPF_CNPJ}"
+      senha: "${TJSP_SENHA}"
+    headers:
+      User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      X-Auth-Token: "${TJSP_AUTH_TOKEN}"
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      Accept-Language: "pt-BR,pt;q=0.9,en;q=0.8"
+    cookies:
+      enabled: true
+      persist: true
+    rate_limit:
+      requests_por_minuto: 20
+      backoff_multiplier: 3.0
+      max_retries: 5
+      jitter: true
+    tecnologia_preferida: "rest"
+    fallback: ["soap", "scraping"]
+    anti_bot:
+      enabled: true
+      random_delays: true
+      rotate_user_agents: true
+      
+  tjrj:
+    nome: "Tribunal de Justiça do Rio de Janeiro"
+    sigla: "TJRJ"
+    tipo: "estadual"
+    uf: "RJ"
+    urls:
+      rest: "${TJRJ_REST_URL:-https://api.tjrj.jus.br}"
+      soap: "${TJRJ_SOAP_URL:-https://ws.tjrj.jus.br}"
+      base: "${TJRJ_BASE_URL:-http://www4.tjrj.jus.br}"
+    certificado:
+      tipo: "A3"
+      path: "${TJRJ_CERT_PATH}"
+      senha: "${TJRJ_CERT_PASSWORD}"
+    headers:
+      User-Agent: "Sistema Jurídico Autorizado v1.0"
+      X-Auth-Token: "${TJRJ_AUTH_TOKEN}"
+    rate_limit:
+      requests_por_minuto: 25
+      backoff_multiplier: 2.5
+      max_retries: 3
+    tecnologia_preferida: "soap"
+    fallback: ["rest", "scraping"]
+    
+  tjmg:
+    nome: "Tribunal de Justiça de Minas Gerais"
+    sigla: "TJMG"
+    tipo: "estadual"
+    uf: "MG"
+    urls:
+      rest: "${TJMG_REST_URL:-https://pje.tjmg.jus.br/pje/api}"
+      soap: "${TJMG_SOAP_URL:-https://pje.tjmg.jus.br/pje/ws}"
+      base: "${TJMG_BASE_URL:-https://pje.tjmg.jus.br}"
+    certificado:
+      tipo: "A3"
+      path: "${TJMG_CERT_PATH}"
+      senha: "${TJMG_CERT_PASSWORD}"
+    headers:
+      User-Agent: "Sistema Jurídico Autorizado v1.0"
+      X-Auth-Token: "${TJMG_AUTH_TOKEN}"
+    rate_limit:
+      requests_por_minuto: 20
+      backoff_multiplier: 3.0
+      max_retries: 3
+    tecnologia_preferida: "rest"
+    fallback: ["soap", "scraping"]
+    
+  # TRIBUNAIS REGIONAIS DO TRABALHO
+  trt2:
+    nome: "Tribunal Regional do Trabalho da 2ª Região"
+    sigla: "TRT2"
+    tipo: "trabalho"
+    jurisdicao: ["SP"]
+    urls:
+      rest: "${TRT2_REST_URL:-https://pje.trt2.jus.br/pje/api}"
+      soap: "${TRT2_SOAP_URL:-https://pje.trt2.jus.br/pje/ws}"
+      base: "${TRT2_BASE_URL:-https://pje.trt2.jus.br}"
+    certificado:
+      tipo: "A3"
+      path: "${TRT2_CERT_PATH}"
+      senha: "${TRT2_CERT_PASSWORD}"
+    headers:
+      User-Agent: "Sistema Jurídico Autorizado v1.0"
+      X-Auth-Token: "${TRT2_AUTH_TOKEN}"
+    rate_limit:
+      requests_por_minuto: 20
+      backoff_multiplier: 3.0
+      max_retries: 3
+    tecnologia_preferida: "rest"
+    fallback: ["soap", "scraping"]
+    
+# CONFIGURAÇÕES GLOBAIS
+configuracoes_globais:
+  ssl:
+    verify: true
+    min_version: "TLSv1.2"
+    cert_store: "${SSL_CERT_STORE:-/etc/ssl/certs}"
+    
+  proxy:
+    enabled: "${PROXY_ENABLED:-false}"
+    http: "${HTTP_PROXY}"
+    https: "${HTTPS_PROXY}"
+    no_proxy: "${NO_PROXY:-localhost,127.0.0.1}"
+    
+  cache:
+    enabled: true
+    ttl_segundos: 3600
+    max_size_mb: 1000
+    redis_url: "${REDIS_URL:-redis://localhost:6379}"
+    
+  performance:
+    timeout_conexao: 30
+    timeout_leitura: 300
+    max_connections: 100
+    keepalive: true
+    
+  seguranca:
+    criptografia_credenciais: true
+    mascara_logs: true
+    auditoria: true
+    ip_whitelist: "${IP_WHITELIST}"
+    
+  monitoramento:
+    prometheus_enabled: true
+    jaeger_enabled: false
+    sentry_dsn: "${SENTRY_DSN}"
+    log_level: "${LOG_LEVEL:-INFO}"

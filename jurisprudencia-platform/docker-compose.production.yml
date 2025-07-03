@@ -1,0 +1,331 @@
+version: '3.9'
+
+services:
+  # ===========================
+  # BANCO DE DADOS PRINCIPAL
+  # ===========================
+  postgres:
+    image: postgres:16-alpine
+    container_name: jurisprudencia-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-jurisprudencia_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-jurisprudencia_db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=pt_BR.utf8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-jurisprudencia_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jurisprudencia-network
+
+  # ===========================
+  # CACHE REDIS
+  # ===========================
+  redis:
+    image: redis:7-alpine
+    container_name: jurisprudencia-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jurisprudencia-network
+
+  # ===========================
+  # VECTOR DATABASE
+  # ===========================
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: jurisprudencia-chromadb
+    restart: unless-stopped
+    environment:
+      - ANONYMIZED_TELEMETRY=false
+      - ALLOW_RESET=false
+      - IS_PERSISTENT=true
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.token_authn.TokenAuthenticationServerProvider
+      - CHROMA_SERVER_AUTH_TOKEN_TRANSPORT_HEADER=X-Chroma-Token
+      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_AUTH_TOKEN}
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports:
+      - "${CHROMA_PORT:-8000}:8000"
+    networks:
+      - jurisprudencia-network
+
+  # ===========================
+  # APLICAÇÃO PRINCIPAL
+  # ===========================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - PYTHON_VERSION=3.11
+    container_name: jurisprudencia-app
+    restart: unless-stopped
+    environment:
+      - ENV=production
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CHROMA_URL=http://chromadb:8000
+      - CHROMA_AUTH_TOKEN=${CHROMA_AUTH_TOKEN}
+    env_file:
+      - .env.production
+    volumes:
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+      - ./downloads:/app/downloads
+      - ./logs:/app/logs
+      - ./temp:/app/temp
+    ports:
+      - "${API_PORT:-8080}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - jurisprudencia-network
+    command: >
+      sh -c "
+        python manage_db.py init &&
+        uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+      "
+
+  # ===========================
+  # INTERFACE STREAMLIT
+  # ===========================
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: jurisprudencia-ui
+    restart: unless-stopped
+    environment:
+      - API_URL=http://app:8000
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+    env_file:
+      - .env.production
+    volumes:
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+    ports:
+      - "${STREAMLIT_PORT:-8501}:8501"
+    depends_on:
+      - app
+    networks:
+      - jurisprudencia-network
+    command: streamlit run src/interface/admin_config.py --server.port=8501 --server.address=0.0.0.0
+
+  # ===========================
+  # WORKER CELERY
+  # ===========================
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jurisprudencia-worker
+    restart: unless-stopped
+    environment:
+      - ENV=production
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/2
+    env_file:
+      - .env.production
+    volumes:
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+      - ./downloads:/app/downloads
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - jurisprudencia-network
+    command: celery -A src.tasks.celery_app worker --loglevel=info --concurrency=4
+
+  # ===========================
+  # CELERY BEAT (SCHEDULER)
+  # ===========================
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jurisprudencia-beat
+    restart: unless-stopped
+    environment:
+      - ENV=production
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+    env_file:
+      - .env.production
+    volumes:
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - jurisprudencia-network
+    command: celery -A src.tasks.celery_app beat --loglevel=info
+
+  # ===========================
+  # FLOWER (MONITORAMENTO)
+  # ===========================
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jurisprudencia-flower
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - FLOWER_BASIC_AUTH=${FLOWER_USER:-admin}:${FLOWER_PASSWORD}
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    depends_on:
+      - redis
+    networks:
+      - jurisprudencia-network
+    command: celery -A src.tasks.celery_app flower --port=5555
+
+  # ===========================
+  # NGINX (PROXY REVERSO)
+  # ===========================
+  nginx:
+    image: nginx:alpine
+    container_name: jurisprudencia-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./static:/usr/share/nginx/html/static:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - app
+      - streamlit
+    networks:
+      - jurisprudencia-network
+
+  # ===========================
+  # PROMETHEUS (MÉTRICAS)
+  # ===========================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: jurisprudencia-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - jurisprudencia-network
+
+  # ===========================
+  # GRAFANA (DASHBOARDS)
+  # ===========================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: jurisprudencia-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - jurisprudencia-network
+
+  # ===========================
+  # BACKUP SERVICE
+  # ===========================
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile.backup
+    container_name: jurisprudencia-backup
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - S3_BUCKET=${BACKUP_S3_BUCKET}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - ./backups:/backups
+      - postgres_data:/data/postgres:ro
+      - redis_data:/data/redis:ro
+      - chroma_data:/data/chroma:ro
+    depends_on:
+      - postgres
+    networks:
+      - jurisprudencia-network
+
+# ===========================
+# VOLUMES
+# ===========================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  chroma_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  nginx_logs:
+    driver: local
+
+# ===========================
+# NETWORKS
+# ===========================
+networks:
+  jurisprudencia-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

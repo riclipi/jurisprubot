@@ -20,6 +20,10 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 import queue
 import threading
+import ssl
+import certifi
+from aiohttp import TCPConnector
+import magic  # python-magic para validação de tipos de arquivo
 
 class StatusDownload(Enum):
     PENDENTE = "pendente"
@@ -168,25 +172,42 @@ class DownloadManagerAvançado:
         await self._finalizar()
     
     async def _inicializar_session(self):
-        """Inicializa sessão HTTP"""
+        """Inicializa sessão HTTP com SSL configurado"""
         
+        # Criar contexto SSL seguro
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+        ssl_context.check_hostname = True
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+        
+        # Configurar timeout
         timeout = aiohttp.ClientTimeout(total=300, connect=30)
+        
+        # Configurar connector com SSL
         connector = aiohttp.TCPConnector(
             limit=100,
             limit_per_host=self.max_concurrent_per_domain,
             ttl_dns_cache=300,
-            use_dns_cache=True
+            use_dns_cache=True,
+            ssl=ssl_context,
+            enable_cleanup_closed=True
         )
         
         self.session = aiohttp.ClientSession(
             timeout=timeout,
             connector=connector,
             headers={
-                'User-Agent': 'DownloadManager/1.0 (Plataforma Jurídica Avançada)'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
             }
         )
         
-        self.logger.info("Sessão HTTP inicializada")
+        self.logger.info("Sessão HTTP inicializada com SSL/TLS configurado")
     
     async def adicionar_download(self, 
                                url: str, 
@@ -398,18 +419,40 @@ class DownloadManagerAvançado:
             await self._tratar_erro_download(item, str(e))
     
     async def _baixar_arquivo(self, item: ItemDownload, response: aiohttp.ClientResponse):
-        """Baixa arquivo em chunks com progresso"""
+        """Baixa arquivo em chunks com progresso e validação"""
         
         chunk_size = 8192
+        temp_file = f"{item.destino}.tmp"
         
-        async with aiofiles.open(item.destino, 'wb') as f:
-            async for chunk in response.content.iter_chunked(chunk_size):
-                await f.write(chunk)
-                item.tamanho_baixado += len(chunk)
+        # Verificar se é download resumível
+        if os.path.exists(temp_file):
+            item.tamanho_baixado = os.path.getsize(temp_file)
+            mode = 'ab'
+        else:
+            mode = 'wb'
+        
+        try:
+            async with aiofiles.open(temp_file, mode) as f:
+                async for chunk in response.content.iter_chunked(chunk_size):
+                    await f.write(chunk)
+                    item.tamanho_baixado += len(chunk)
+                    
+                    # Notificar progresso periodicamente
+                    if item.tamanho_baixado % (chunk_size * 10) == 0:
+                        await self._notificar_callbacks(item, 'progresso')
+            
+            # Validar arquivo baixado
+            if await self._validar_arquivo(temp_file, item):
+                # Mover arquivo temporário para destino final
+                os.rename(temp_file, item.destino)
+            else:
+                raise Exception("Arquivo baixado corrompido ou inválido")
                 
-                # Notificar progresso periodicamente
-                if item.tamanho_baixado % (chunk_size * 10) == 0:
-                    await self._notificar_callbacks(item, 'progresso')
+        except Exception as e:
+            # Limpar arquivo temporário em caso de erro
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+            raise
     
     async def _tratar_erro_download(self, item: ItemDownload, erro_msg: str):
         """Trata erros de download"""
@@ -754,6 +797,117 @@ if __name__ == "__main__":
             
             print(f"\n🎉 TESTE CONCLUÍDO!")
             print("🚀 DOWNLOAD MANAGER FUNCIONAL COM PARALELIZAÇÃO!")
+    
+    async def _validar_arquivo(self, arquivo_path: str, item: ItemDownload) -> bool:
+        """Valida integridade e tipo do arquivo baixado"""
+        
+        try:
+            # Verificar se arquivo existe e tem tamanho
+            if not os.path.exists(arquivo_path):
+                return False
+            
+            tamanho = os.path.getsize(arquivo_path)
+            if tamanho == 0:
+                return False
+            
+            # Validar tipo de arquivo usando magic
+            try:
+                file_type = magic.from_file(arquivo_path, mime=True)
+                
+                # Validações específicas por tipo
+                if item.tipo_arquivo == TipoArquivo.PDF:
+                    if not file_type.startswith('application/pdf'):
+                        self.logger.warning(f"Arquivo PDF inválido: {file_type}")
+                        return False
+                    
+                    # Validação adicional de PDF
+                    with open(arquivo_path, 'rb') as f:
+                        header = f.read(5)
+                        if header != b'%PDF-':
+                            return False
+                
+                elif item.tipo_arquivo == TipoArquivo.DOC:
+                    if 'msword' not in file_type and 'document' not in file_type:
+                        return False
+                
+                elif item.tipo_arquivo == TipoArquivo.ZIP:
+                    if 'zip' not in file_type:
+                        return False
+                    
+                    # Verificar integridade do ZIP
+                    try:
+                        with zipfile.ZipFile(arquivo_path, 'r') as zf:
+                            zf.testzip()
+                    except:
+                        return False
+                
+            except Exception as e:
+                self.logger.warning(f"Erro ao validar tipo de arquivo: {e}")
+                # Continuar mesmo sem python-magic
+            
+            # Validação por hash se fornecido
+            if 'expected_hash' in item.metadados:
+                file_hash = await self._calcular_hash_arquivo(arquivo_path)
+                if file_hash != item.metadados['expected_hash']:
+                    self.logger.error(f"Hash inválido: esperado {item.metadados['expected_hash']}, obtido {file_hash}")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Erro na validação do arquivo: {e}")
+            return False
+    
+    async def _calcular_hash_arquivo(self, arquivo_path: str, algoritmo: str = 'sha256') -> str:
+        """Calcula hash do arquivo para validação"""
+        
+        hash_obj = hashlib.new(algoritmo)
+        
+        async with aiofiles.open(arquivo_path, 'rb') as f:
+            while chunk := await f.read(8192):
+                hash_obj.update(chunk)
+        
+        return hash_obj.hexdigest()
+    
+    async def _verificar_cache(self, item: ItemDownload) -> bool:
+        """Verifica se arquivo já existe no cache"""
+        
+        if os.path.exists(item.destino):
+            # Verificar tamanho
+            tamanho = os.path.getsize(item.destino)
+            if tamanho > 0:
+                # Validar arquivo
+                if await self._validar_arquivo(item.destino, item):
+                    self.logger.info(f"Arquivo encontrado no cache: {item.nome_arquivo}")
+                    return True
+                else:
+                    # Arquivo corrompido, remover
+                    os.remove(item.destino)
+                    self.logger.warning(f"Arquivo corrompido removido do cache: {item.nome_arquivo}")
+        
+        return False
+    
+    def configurar_ssl_personalizado(self, verificar: bool = True, 
+                                   cert_path: Optional[str] = None,
+                                   min_tls_version: str = "TLSv1.2"):
+        """Configura SSL personalizado para downloads seguros"""
+        
+        self.ssl_config = {
+            'verify': verificar,
+            'cert_path': cert_path,
+            'min_tls_version': min_tls_version
+        }
+        
+        self.logger.info(f"SSL configurado: verify={verificar}, TLS={min_tls_version}")
+    
+    async def adicionar_certificado_tribunal(self, tribunal: str, cert_path: str):
+        """Adiciona certificado específico para um tribunal"""
+        
+        if not hasattr(self, 'tribunal_certs'):
+            self.tribunal_certs = {}
+        
+        self.tribunal_certs[tribunal] = cert_path
+        self.logger.info(f"Certificado adicionado para {tribunal}: {cert_path}")
     
     # Executar teste
     asyncio.run(testar_download_manager())

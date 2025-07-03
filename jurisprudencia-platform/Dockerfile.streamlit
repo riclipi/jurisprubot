@@ -1,0 +1,49 @@
+FROM python:3.11-slim
+
+# Variáveis de ambiente
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Instalar dependências do sistema
+RUN apt-get update && apt-get install -y \
+    curl \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Diretório de trabalho
+WORKDIR /app
+
+# Copiar requirements
+COPY requirements.txt .
+
+# Instalar apenas dependências necessárias para Streamlit
+RUN pip install --no-cache-dir \
+    streamlit \
+    plotly \
+    pandas \
+    requests \
+    psycopg2-binary \
+    python-dotenv \
+    PyJWT \
+    pyotp \
+    qrcode
+
+# Copiar código da aplicação
+COPY . .
+
+# Criar usuário não-root
+RUN groupadd -r appuser && useradd -r -g appuser appuser \
+    && chown -R appuser:appuser /app
+
+# Mudar para usuário não-root
+USER appuser
+
+# Expor porta Streamlit
+EXPOSE 8501
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# Comando padrão
+CMD ["streamlit", "run", "src/interface/admin_config.py", "--server.port=8501", "--server.address=0.0.0.0"]

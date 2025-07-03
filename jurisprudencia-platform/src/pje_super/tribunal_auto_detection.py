@@ -315,38 +315,11 @@ class TribunalAutoDetection:
         return None
     
     def _validar_cnj(self, numero: str) -> bool:
-        """Validação rigorosa do número CNJ"""
-        
-        numero_limpo = self._limpar_cnj(numero)
-        
-        # Verificar formato
-        if len(numero_limpo) != 20:
-            return False
-        
-        if not numero_limpo.isdigit():
-            return False
-        
-        # Validar dígito verificador
+        """Validação rigorosa do número CNJ usando validador oficial"""
         try:
-            sequencial = numero_limpo[:7]
-            dv = numero_limpo[7:9]
-            ano = numero_limpo[9:13]
-            segmento = numero_limpo[13:14]
-            tribunal = numero_limpo[14:18]
-            origem = numero_limpo[18:20]
-            
-            # Algoritmo de validação CNJ
-            numeros = sequencial + ano + segmento + tribunal + origem
-            resto = 0
-            
-            for i, digit in enumerate(reversed(numeros)):
-                resto += int(digit) * (2 + (i % 8))
-            
-            resto = resto % 97
-            dv_calculado = 98 - resto
-            
-            return str(dv_calculado).zfill(2) == dv
-            
+            # Importar e usar o validador oficial
+            from ..utils.cnj_validator import validar_numero_cnj
+            return validar_numero_cnj(numero)
         except Exception as e:
             self.logger.error(f"Erro na validação CNJ: {e}")
             return False
@@ -356,20 +329,23 @@ class TribunalAutoDetection:
         return re.sub(r'[^\d]', '', numero)
     
     def _extrair_componentes_cnj(self, numero: str) -> Optional[Dict]:
-        """Extrai componentes do número CNJ"""
-        
-        numero_limpo = self._limpar_cnj(numero)
-        
+        """Extrai componentes do número CNJ usando validador oficial"""
         try:
-            return {
-                'numero_completo': numero_limpo,
-                'sequencial': numero_limpo[:7],
-                'dv': numero_limpo[7:9], 
-                'ano': numero_limpo[9:13],
-                'segmento': numero_limpo[13:14],
-                'tribunal': numero_limpo[14:18],
-                'origem': numero_limpo[18:20]
-            }
+            from ..utils.cnj_validator import extrair_componentes_cnj
+            componentes = extrair_componentes_cnj(numero)
+            
+            if componentes:
+                # Adaptar formato para compatibilidade
+                return {
+                    'numero_completo': self._limpar_cnj(numero),
+                    'sequencial': componentes['sequencial'],
+                    'dv': componentes['digito_verificador'],
+                    'ano': componentes['ano'],
+                    'segmento': componentes['segmento'],
+                    'tribunal': componentes['tribunal'].zfill(4),  # Garantir 4 dígitos
+                    'origem': componentes['origem']
+                }
+            return None
         except Exception:
             return None
     

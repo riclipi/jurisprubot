@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header { 
+            background-color: #d32f2f; 
+            color: white; 
+            padding: 30px 20px; 
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 500;
+        }
+        .security-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content { 
+            padding: 30px 20px; 
+        }
+        .alert-box { 
+            padding: 20px; 
+            margin: 20px 0; 
+            border-radius: 8px;
+            background-color: #ffebee;
+            border: 2px solid #ef5350;
+            color: #c62828;
+        }
+        .security-details {
+            background-color: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .security-details h3 {
+            margin-top: 0;
+            color: #d32f2f;
+            font-size: 18px;
+        }
+        .security-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .security-details td {
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .security-details td:first-child {
+            font-weight: bold;
+            color: #666;
+            width: 40%;
+        }
+        .action-required {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .action-required h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .action-required ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .footer { 
+            text-align: center; 
+            padding: 20px; 
+            color: #666;
+            font-size: 14px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            margin: 10px 5px;
+            background-color: #d32f2f;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .button.secondary {
+            background-color: #757575;
+        }
+        .ip-info {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="security-icon">🚨</div>
+            <h1>Alerta de Segurança</h1>
+        </div>
+        <div class="content">
+            <div class="alert-box">
+                <strong>{{ title }}</strong><br>
+                {{ message }}
+            </div>
+            
+            <div class="security-details">
+                <h3>Informações do Incidente</h3>
+                <table>
+                    {% if metadata.event_data %}
+                        {% if metadata.event_data.ip_address %}
+                        <tr>
+                            <td>Endereço IP:</td>
+                            <td><span class="ip-info">{{ metadata.event_data.ip_address }}</span></td>
+                        </tr>
+                        {% endif %}
+                        {% if metadata.event_data.username %}
+                        <tr>
+                            <td>Usuário:</td>
+                            <td>{{ metadata.event_data.username }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if metadata.event_data.timestamp %}
+                        <tr>
+                            <td>Data/Hora:</td>
+                            <td>{{ metadata.event_data.timestamp }}</td>
+                        </tr>
+                        {% endif %}
+                    {% endif %}
+                    <tr>
+                        <td>Categoria:</td>
+                        <td>{{ metadata.category|upper }}</td>
+                    </tr>
+                    <tr>
+                        <td>ID da Regra:</td>
+                        <td>{{ metadata.rule_id }}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="action-required">
+                <h3>Ações Recomendadas</h3>
+                <ul>
+                    <li>Verifique os logs de acesso para mais detalhes</li>
+                    <li>Confirme se esta atividade é legítima</li>
+                    <li>Se suspeitar de comprometimento, altere as senhas imediatamente</li>
+                    <li>Considere ativar autenticação de dois fatores</li>
+                </ul>
+            </div>
+            
+            <div style="text-align: center;">
+                <a href="#" class="button">Ver Logs Completos</a>
+                <a href="#" class="button secondary">Central de Segurança</a>
+            </div>
+        </div>
+        <div class="footer">
+            <p>
+                <strong>Sistema de Segurança - Alerta Automático</strong><br>
+                Este é um email automático. Não responda.<br>
+                Em caso de emergência, contate: seguranca@empresa.com
+            </p>
+        </div>
+    </div>
+</body>
+</html>

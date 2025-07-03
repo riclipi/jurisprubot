@@ -1,16 +1,20 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    monitor: 'jurisprudencia-monitor'
 
-rule_files:
-  - "alert_rules.yml"
-
+# Alerting configuration
 alerting:
   alertmanagers:
     - static_configs:
-        - targets:
-          - alertmanager:9093
+        - targets: []
 
+# Load rules
+rule_files:
+  - 'alerts/*.yml'
+
+# Scrape configurations
 scrape_configs:
   # Prometheus itself
   - job_name: 'prometheus'
@@ -18,39 +22,33 @@ scrape_configs:
       - targets: ['localhost:9090']
 
   # FastAPI Application
-  - job_name: 'jurisprudencia-api'
+  - job_name: 'fastapi'
     static_configs:
-      - targets: ['api:8000']
+      - targets: ['app:8000']
     metrics_path: '/metrics'
-    scrape_interval: 10s
-    scrape_timeout: 5s
 
-  # PostgreSQL
-  - job_name: 'postgres'
+  # PostgreSQL Exporter
+  - job_name: 'postgresql'
     static_configs:
       - targets: ['postgres-exporter:9187']
-    scrape_interval: 15s
 
-  # Redis
+  # Redis Exporter
   - job_name: 'redis'
     static_configs:
       - targets: ['redis-exporter:9121']
-    scrape_interval: 15s
 
-  # Node Exporter (system metrics)
+  # Node Exporter (host metrics)
   - job_name: 'node'
     static_configs:
       - targets: ['node-exporter:9100']
-    scrape_interval: 15s
 
-  # Celery
-  - job_name: 'celery'
-    static_configs:
-      - targets: ['celery-exporter:9540']
-    scrape_interval: 15s
-
-  # Nginx
+  # Nginx Exporter
   - job_name: 'nginx'
     static_configs:
       - targets: ['nginx-exporter:9113']
-    scrape_interval: 15s
+
+  # Custom application metrics
+  - job_name: 'app_custom'
+    static_configs:
+      - targets: ['app:9091']
+    metrics_path: '/custom_metrics'

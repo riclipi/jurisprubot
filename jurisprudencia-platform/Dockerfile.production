@@ -1,0 +1,71 @@
+FROM python:3.11-slim
+
+# Argumentos de build
+ARG PYTHON_VERSION=3.11
+
+# Variáveis de ambiente
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    POETRY_VERSION=1.7.1 \
+    POETRY_HOME="/opt/poetry" \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    PATH="$POETRY_HOME/bin:$PATH"
+
+# Instalar dependências do sistema
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    libpq-dev \
+    libssl-dev \
+    libffi-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libmagic1 \
+    tesseract-ocr \
+    tesseract-ocr-por \
+    poppler-utils \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar Poetry
+RUN curl -sSL https://install.python-poetry.org | python3 -
+
+# Diretório de trabalho
+WORKDIR /app
+
+# Copiar arquivos de dependências
+COPY pyproject.toml poetry.lock* requirements.txt* ./
+
+# Instalar dependências Python
+RUN if [ -f poetry.lock ]; then \
+        poetry install --no-root --no-dev; \
+    else \
+        pip install --no-cache-dir -r requirements.txt; \
+    fi
+
+# Copiar código da aplicação
+COPY . .
+
+# Criar diretórios necessários
+RUN mkdir -p /app/logs /app/downloads /app/temp /app/backups
+
+# Criar usuário não-root
+RUN groupadd -r appuser && useradd -r -g appuser appuser \
+    && chown -R appuser:appuser /app
+
+# Mudar para usuário não-root
+USER appuser
+
+# Expor porta
+EXPOSE 8000
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+# Comando padrão
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
