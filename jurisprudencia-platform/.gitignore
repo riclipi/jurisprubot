@@ -19,6 +19,8 @@ wheels/
 .installed.cfg
 *.egg
 .env
+.env.*
+!.env.example
 .venv
 data/raw_pdfs/
 data/processed/
