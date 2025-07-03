@@ -6,7 +6,6 @@ Módulo separado que não interfere no sistema principal
 import streamlit as st
 import sys
 import os
-sys.path.append('.')
 
 from pathlib import Path
 from datetime import datetime
@@ -14,9 +13,9 @@ import json
 
 # Importar módulos MCP (com try/except para não quebrar se houver erro)
 try:
-    from src.mcp_integration.document_manager import MCPDocumentManager
-    from src.mcp_integration.file_organizer import FileOrganizer
-    from src.mcp_integration.pdf_processor import PDFProcessor
+    from ..mcp_integration.document_manager import MCPDocumentManager
+    from ..mcp_integration.file_organizer import FileOrganizer
+    from ..mcp_integration.pdf_processor import PDFProcessor
     MCP_AVAILABLE = True
 except Exception as e:
     st.error(f"⚠️ Módulos MCP não disponíveis: {e}")

@@ -12,9 +12,8 @@ from datetime import datetime, timedelta
 import hashlib
 import base64
 from pathlib import Path
-sys.path.append('.')
-from src.rag.simple_search import SimpleSearchEngine
-from src.scraper.realtime_search import RealtimeJurisprudenceSearch
+from ..rag.simple_search import SimpleSearchEngine
+from ..scraper.realtime_search import RealtimeJurisprudenceSearch
 
 # Configuração da página
 st.set_page_config(
@@ -643,7 +642,7 @@ def render_mcp_interface():
     """Renderizar interface MCP (funcionalidades extras)"""
     try:
         # Importar módulo MCP
-        from src.interface.mcp_tab import render_mcp_tab
+        from .mcp_tab import render_mcp_tab
         render_mcp_tab()
     except ImportError as e:
         st.error("⚠️ Módulos MCP não estão disponíveis")

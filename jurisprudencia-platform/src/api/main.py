@@ -10,10 +10,10 @@ from contextlib import asynccontextmanager
 from typing import List, Optional, Dict
 import logging
 
-from src.api.routers import auth, search, cases, analytics, admin
-from src.api.models import HealthCheck
-from src.database.database_manager import get_db_manager
-from src.monitoring import setup_default_logging, metrics_collector, get_logger
+from .routers import auth, search, cases, analytics, admin
+from .models import HealthCheck
+from ..database.database_manager import get_db_manager
+from ..monitoring import setup_default_logging, metrics_collector, get_logger
 
 # Configurar logging
 setup_default_logging()

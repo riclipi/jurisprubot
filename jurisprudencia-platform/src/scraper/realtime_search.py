@@ -683,7 +683,7 @@ class AdvancedRealtimeSearch:
             # Importar sistema local
             import sys
             sys.path.append('.')
-            from src.rag.simple_search import SimpleSearchEngine
+            from ..rag.simple_search import SimpleSearchEngine
             
             # Usar sistema local
             local_search = SimpleSearchEngine()

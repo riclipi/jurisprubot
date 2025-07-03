@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Dict, List
 
 from celery import Task, group, chain
-from src.pipeline.celery_app import app
-from src.processing.pdf_processor import PDFProcessor
-from src.database.database_manager import get_db_manager
+from ..celery_app import app
+from ...processing.pdf_processor import PDFProcessor
+from ...database.database_manager import get_db_manager
 
 logger = logging.getLogger(__name__)
 

@@ -6,10 +6,10 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional, Dict
 import logging
 
-from src.api.models import SearchRequest, SearchResponse, SearchResult
-from src.rag.search_engine import SearchEngine
-from src.database.database_manager import get_db_manager
-from src.auth.auth import get_current_active_user, User
+from ..models import SearchRequest, SearchResponse, SearchResult
+from ...rag.search_engine import SearchEngine
+from ...database.database_manager import get_db_manager
+from ...auth.auth import get_current_active_user, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

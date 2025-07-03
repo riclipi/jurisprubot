@@ -10,6 +10,29 @@ from datetime import datetime, timedelta
 from enum import Enum
 import json
 from pathlib import Path
+import os
+import logging
+
+# Importar cliente Gemini
+try:
+    from ..ai.gemini_client import GeminiClient, get_gemini_client
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    logging.warning("Gemini não disponível. Usando análise local.")
+
+# Importar outros LLMs como fallback
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
 
 class RiscoProcessual(Enum):
     BAIXO = "baixo"
@@ -100,9 +123,17 @@ class AnalisadorJuridico:
     Funcionalidades que superam o Justino Cível
     """
     
-    def __init__(self):
+    def __init__(self, use_ai: bool = True, ai_provider: str = "gemini"):
         self._carregar_base_conhecimento()
         self._inicializar_criterios_analise()
+        self.use_ai = use_ai
+        self.ai_provider = ai_provider
+        self.logger = logging.getLogger(__name__)
+        
+        # Inicializar cliente de IA
+        self.ai_client = None
+        if self.use_ai:
+            self._inicializar_cliente_ia()
     
     def _carregar_base_conhecimento(self):
         """Carrega base de conhecimento jurídico"""
@@ -975,3 +1006,150 @@ class AnalisadorJuridico:
             f.write(relatorio)
         
         return str(caminho_arquivo)
+    
+    def _inicializar_cliente_ia(self):
+        """Inicializa cliente de IA com fallback"""
+        
+        if self.ai_provider == "gemini" and GEMINI_AVAILABLE:
+            try:
+                self.ai_client = get_gemini_client()
+                self.logger.info("Cliente Gemini inicializado com sucesso")
+                return
+            except Exception as e:
+                self.logger.warning(f"Erro ao inicializar Gemini: {e}")
+        
+        # Fallback para OpenAI
+        if OPENAI_AVAILABLE:
+            try:
+                openai.api_key = os.getenv("OPENAI_API_KEY")
+                if openai.api_key:
+                    self.ai_provider = "openai"
+                    self.logger.info("Usando OpenAI como fallback")
+                    return
+            except Exception as e:
+                self.logger.warning(f"Erro ao inicializar OpenAI: {e}")
+        
+        # Fallback para Groq
+        if GROQ_AVAILABLE:
+            try:
+                groq_key = os.getenv("GROQ_API_KEY")
+                if groq_key:
+                    self.ai_client = Groq(api_key=groq_key)
+                    self.ai_provider = "groq"
+                    self.logger.info("Usando Groq como fallback")
+                    return
+            except Exception as e:
+                self.logger.warning(f"Erro ao inicializar Groq: {e}")
+        
+        # Sem IA disponível
+        self.use_ai = False
+        self.logger.warning("Nenhum provedor de IA disponível. Usando análise local.")
+    
+    def analisar_com_ia(self, texto: str, tipo_analise: str = "completa") -> Optional[Dict[str, Any]]:
+        """Realiza análise usando IA (Gemini prioritário)"""
+        
+        if not self.use_ai or not self.ai_client:
+            return None
+        
+        try:
+            if self.ai_provider == "gemini" and hasattr(self.ai_client, 'analyze_legal_document'):
+                # Usar método especializado do Gemini
+                return self.ai_client.analyze_legal_document(texto, tipo_analise)
+            
+            elif self.ai_provider == "openai":
+                # Análise com OpenAI
+                response = openai.ChatCompletion.create(
+                    model="gpt-4" if "gpt-4" in os.getenv("OPENAI_MODEL", "") else "gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "Você é um especialista em direito brasileiro."},
+                        {"role": "user", "content": f"Analise este documento jurídico: {texto[:4000]}"}
+                    ],
+                    temperature=0.3
+                )
+                return {
+                    "analise": response.choices[0].message.content,
+                    "modelo": self.ai_provider,
+                    "tipo_analise": tipo_analise
+                }
+            
+            elif self.ai_provider == "groq":
+                # Análise com Groq
+                response = self.ai_client.chat.completions.create(
+                    model="mixtral-8x7b-32768",
+                    messages=[
+                        {"role": "system", "content": "Você é um especialista em direito brasileiro."},
+                        {"role": "user", "content": f"Analise este documento jurídico: {texto[:4000]}"}
+                    ],
+                    temperature=0.3
+                )
+                return {
+                    "analise": response.choices[0].message.content,
+                    "modelo": self.ai_provider,
+                    "tipo_analise": tipo_analise
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Erro na análise com IA: {e}")
+            return None
+    
+    def gerar_parecer_ia(self, contexto: Dict[str, Any]) -> Optional[str]:
+        """Gera parecer jurídico usando IA"""
+        
+        if not self.use_ai:
+            return None
+        
+        try:
+            if self.ai_provider == "gemini" and hasattr(self.ai_client, 'generate_legal_document'):
+                return self.ai_client.generate_legal_document("parecer", contexto)
+            else:
+                # Fallback genérico
+                prompt = f"""Elabore um parecer jurídico com base nas seguintes informações:
+                Tipo de ação: {contexto.get('tipo_acao')}
+                Questão: {contexto.get('questao')}
+                Fatos: {contexto.get('fatos')}
+                """
+                
+                if self.ai_provider == "openai":
+                    response = openai.ChatCompletion.create(
+                        model="gpt-4" if "gpt-4" in os.getenv("OPENAI_MODEL", "") else "gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "Você é um advogado experiente."},
+                            {"role": "user", "content": prompt}
+                        ]
+                    )
+                    return response.choices[0].message.content
+                    
+                elif self.ai_provider == "groq":
+                    response = self.ai_client.chat.completions.create(
+                        model="mixtral-8x7b-32768",
+                        messages=[
+                            {"role": "system", "content": "Você é um advogado experiente."},
+                            {"role": "user", "content": prompt}
+                        ]
+                    )
+                    return response.choices[0].message.content
+                    
+        except Exception as e:
+            self.logger.error(f"Erro ao gerar parecer: {e}")
+            return None
+    
+    def estimar_custo_ia(self, texto: str) -> Dict[str, Any]:
+        """Estima custos de processamento com IA"""
+        
+        if self.ai_provider == "gemini" and hasattr(self.ai_client, 'estimate_cost'):
+            return self.ai_client.estimate_cost(texto)
+        
+        # Estimativa genérica
+        tokens = len(texto) // 4
+        custos = {
+            "gemini": 0.000075 * tokens / 1000,  # Flash Lite
+            "openai": 0.002 * tokens / 1000,     # GPT-3.5
+            "groq": 0.0001 * tokens / 1000       # Mixtral
+        }
+        
+        return {
+            "provider": self.ai_provider,
+            "tokens_estimados": tokens,
+            "custo_usd": custos.get(self.ai_provider, 0),
+            "custo_brl": custos.get(self.ai_provider, 0) * 5.0
+        }

@@ -8,8 +8,8 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 import re
 
-from src.database.database_manager import get_db_manager
-from src.rag.vector_store import VectorStore
+from ..database.database_manager import get_db_manager
+from .vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
 

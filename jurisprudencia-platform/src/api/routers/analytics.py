@@ -7,9 +7,9 @@ from typing import Optional
 from datetime import datetime, timedelta
 import logging
 
-from src.api.models import TrendRequest, TrendResponse, CaseAnalytics
-from src.database.database_manager import get_db_manager
-from src.pipeline.tasks.reporting import generate_case_analytics, generate_trend_analysis
+from ..models import TrendRequest, TrendResponse, CaseAnalytics
+from ...database.database_manager import get_db_manager
+from ...pipeline.tasks.reporting import generate_case_analytics, generate_trend_analysis
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

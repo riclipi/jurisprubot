@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 from typing import Dict
 
 from celery import Task
-from src.pipeline.celery_app import app
-from src.database.database_manager import get_db_manager
+from ..celery_app import app
+from ...database.database_manager import get_db_manager
 
 logger = logging.getLogger(__name__)
 

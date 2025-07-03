@@ -12,13 +12,10 @@ from datetime import datetime
 from pathlib import Path
 import tempfile
 
-# Adicionar ao path
-sys.path.append('.')
-
 # Importar nossos módulos avançados
-from src.minutas.gerador_minutas import GeradorMinutas, PeticaoAnalise, MinutaGerada
-from src.extracao.extrator_estruturado import ExtratorEstruturado, DocumentoEstruturado
-from src.analise.analisador_juridico import AnalisadorJuridico, AnaliseJuridicaCompleta
+from ..minutas.gerador_minutas import GeradorMinutas, PeticaoAnalise, MinutaGerada
+from ..extracao.extrator_estruturado import ExtratorEstruturado, DocumentoEstruturado
+from ..analise.analisador_juridico import AnalisadorJuridico, AnaliseJuridicaCompleta
 
 class InterfacePremium:
     """
@@ -442,7 +439,7 @@ class InterfacePremium:
                 
                 if st.button("✅ Usar Dados Manuais"):
                     # Criar análise simples
-                    from src.minutas.gerador_minutas import PeticaoAnalise
+                    from ..minutas.gerador_minutas import PeticaoAnalise
                     
                     documento_selecionado = PeticaoAnalise(
                         autor=autor_manual,

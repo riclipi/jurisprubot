@@ -12,7 +12,7 @@ from pathlib import Path
 # Adicionar src ao path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.pipeline.celery_app import app
+from .celery_app import app
 
 # Configurar logging
 logging.basicConfig(
@@ -150,7 +150,7 @@ def run_task(task, args):
 @cli.command()
 def status():
     """Verifica status do sistema"""
-    from src.database.database_manager import get_db_manager
+    from ..database.database_manager import get_db_manager
     
     print("Verificando status do sistema...")
     

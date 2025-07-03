@@ -9,6 +9,29 @@ from dataclasses import dataclass
 from datetime import datetime
 import json
 from pathlib import Path
+import os
+import logging
+
+# Importar cliente Gemini
+try:
+    from ..ai.gemini_client import GeminiClient, get_gemini_client
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    logging.warning("Gemini não disponível para geração de minutas")
+
+# Importar outros LLMs como fallback
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
 
 @dataclass
 class PeticaoAnalise:
@@ -40,11 +63,20 @@ class GeradorMinutas:
     Funcionalidades que superam plataformas concorrentes
     """
     
-    def __init__(self):
+    def __init__(self, use_ai: bool = True, ai_provider: str = "gemini"):
         self.templates_path = Path("data/templates")
         self.templates_path.mkdir(parents=True, exist_ok=True)
         self._carregar_templates()
         self._carregar_base_legal()
+        
+        # Configuração de IA
+        self.use_ai = use_ai
+        self.ai_provider = ai_provider
+        self.logger = logging.getLogger(__name__)
+        self.ai_client = None
+        
+        if self.use_ai:
+            self._inicializar_cliente_ia()
     
     def _carregar_templates(self):
         """Carrega templates de minutas"""
@@ -621,3 +653,199 @@ Juiz de Direito
                 f.write(f"- {obs}\n")
         
         return str(arquivo_path)
+    
+    def _inicializar_cliente_ia(self):
+        """Inicializa cliente de IA com fallback"""
+        
+        if self.ai_provider == "gemini" and GEMINI_AVAILABLE:
+            try:
+                self.ai_client = get_gemini_client()
+                self.logger.info("Gemini configurado para geração de minutas")
+                return
+            except Exception as e:
+                self.logger.warning(f"Erro ao configurar Gemini: {e}")
+        
+        # Fallback para OpenAI
+        if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
+            self.ai_provider = "openai"
+            openai.api_key = os.getenv("OPENAI_API_KEY")
+            self.logger.info("Usando OpenAI como fallback")
+            return
+        
+        # Fallback para Groq
+        if GROQ_AVAILABLE and os.getenv("GROQ_API_KEY"):
+            self.ai_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+            self.ai_provider = "groq"
+            self.logger.info("Usando Groq como fallback")
+            return
+        
+        # Sem IA disponível
+        self.use_ai = False
+        self.logger.warning("Nenhum provedor de IA disponível")
+    
+    def gerar_minuta_com_ia(
+        self,
+        tipo_documento: str,
+        contexto: Dict[str, str],
+        instrucoes_adicionais: Optional[str] = None
+    ) -> Optional[str]:
+        """Gera minuta usando IA (Gemini prioritário)"""
+        
+        if not self.use_ai:
+            return None
+        
+        try:
+            if self.ai_provider == "gemini" and hasattr(self.ai_client, 'generate_legal_document'):
+                # Usar método especializado do Gemini
+                return self.ai_client.generate_legal_document(tipo_documento, contexto)
+            
+            # Prompt para geração
+            prompt = self._criar_prompt_minuta(tipo_documento, contexto, instrucoes_adicionais)
+            
+            if self.ai_provider == "openai":
+                response = openai.ChatCompletion.create(
+                    model="gpt-4" if "gpt-4" in os.getenv("OPENAI_MODEL", "") else "gpt-3.5-turbo",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Você é um advogado experiente especializado em redação de peças jurídicas. Suas minutas devem ser tecnicamente perfeitas e seguir o padrão forense brasileiro."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.5
+                )
+                return response.choices[0].message.content
+            
+            elif self.ai_provider == "groq" and self.ai_client:
+                response = self.ai_client.chat.completions.create(
+                    model="mixtral-8x7b-32768",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Você é um advogado experiente especializado em redação de peças jurídicas. Suas minutas devem ser tecnicamente perfeitas e seguir o padrão forense brasileiro."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.5
+                )
+                return response.choices[0].message.content
+                
+        except Exception as e:
+            self.logger.error(f"Erro ao gerar minuta com IA: {e}")
+            return None
+    
+    def _criar_prompt_minuta(
+        self,
+        tipo_documento: str,
+        contexto: Dict[str, str],
+        instrucoes_adicionais: Optional[str] = None
+    ) -> str:
+        """Cria prompt otimizado para geração de minutas"""
+        
+        prompt = f"""Redija uma {tipo_documento} jurídica com base nas seguintes informações:
+
+"""
+        
+        # Adicionar contexto
+        for chave, valor in contexto.items():
+            if valor:
+                prompt += f"{chave.replace('_', ' ').title()}: {valor}\n"
+        
+        # Instruções específicas por tipo
+        instrucoes_tipo = {
+            "petição inicial": "\nA petição deve conter: endereçamento, qualificação das partes, fatos, fundamentos jurídicos, pedidos e valor da causa.",
+            "contestação": "\nA contestação deve impugnar especificamente os fatos alegados, apresentar preliminares se cabíveis e fundamentos de defesa.",
+            "recurso": "\nO recurso deve conter: endereçamento, qualificação, síntese da decisão recorrida, razões recursais e pedido de reforma.",
+            "parecer": "\nO parecer deve conter: identificação do consulente, questão apresentada, análise fundamentada e conclusão objetiva."
+        }
+        
+        prompt += instrucoes_tipo.get(tipo_documento.lower(), "")
+        
+        if instrucoes_adicionais:
+            prompt += f"\n\nInstruções adicionais: {instrucoes_adicionais}"
+        
+        prompt += "\n\nCite legislação e jurisprudência pertinentes. Use linguagem técnica apropriada."
+        
+        return prompt
+    
+    def aprimorar_minuta_com_ia(self, minuta_original: str, tipo_melhoria: str = "completa") -> Optional[str]:
+        """Aprimora minuta existente usando IA"""
+        
+        if not self.use_ai:
+            return None
+        
+        melhorias = {
+            "completa": "Revise e aprimore esta minuta, melhorando a argumentação, citações e estrutura.",
+            "argumentacao": "Fortaleça a argumentação jurídica desta minuta com mais fundamentos e precedentes.",
+            "linguagem": "Aprimore a linguagem técnica e a clareza desta minuta mantendo o conteúdo.",
+            "citacoes": "Adicione mais citações de legislação e jurisprudência relevantes a esta minuta."
+        }
+        
+        prompt = f"{melhorias.get(tipo_melhoria, melhorias['completa'])}\n\nMinuta original:\n{minuta_original[:4000]}"
+        
+        try:
+            if self.ai_provider == "gemini" and self.ai_client:
+                return self.ai_client.generate(
+                    prompt,
+                    system_prompt="Você é um advogado sênior especializado em aprimorar peças jurídicas.",
+                    temperature=0.4
+                )
+            
+            elif self.ai_provider == "openai":
+                response = openai.ChatCompletion.create(
+                    model="gpt-4" if "gpt-4" in os.getenv("OPENAI_MODEL", "") else "gpt-3.5-turbo",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Você é um advogado sênior especializado em aprimorar peças jurídicas."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.4
+                )
+                return response.choices[0].message.content
+            
+            elif self.ai_provider == "groq" and self.ai_client:
+                response = self.ai_client.chat.completions.create(
+                    model="mixtral-8x7b-32768",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Você é um advogado sênior especializado em aprimorar peças jurídicas."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.4
+                )
+                return response.choices[0].message.content
+                
+        except Exception as e:
+            self.logger.error(f"Erro ao aprimorar minuta: {e}")
+            return None
+    
+    def estimar_custo_geracao(self, contexto: Dict[str, str]) -> Dict[str, float]:
+        """Estima custo de geração da minuta com IA"""
+        
+        # Estimar tamanho do texto
+        texto_estimado = str(contexto)
+        
+        if self.ai_provider == "gemini" and hasattr(self.ai_client, 'estimate_cost'):
+            return self.ai_client.estimate_cost(texto_estimado)
+        
+        # Estimativa genérica
+        tokens = len(texto_estimado) // 4 * 3  # Minuta geralmente 3x maior que contexto
+        
+        custos_por_provider = {
+            "gemini": 0.000075,  # Flash Lite por 1k tokens
+            "openai": 0.002,     # GPT-3.5 por 1k tokens
+            "groq": 0.0001       # Mixtral por 1k tokens
+        }
+        
+        custo_usd = (tokens / 1000) * custos_por_provider.get(self.ai_provider, 0.001)
+        
+        return {
+            "provider": self.ai_provider,
+            "tokens_estimados": tokens,
+            "custo_usd": round(custo_usd, 6),
+            "custo_brl": round(custo_usd * 5.0, 4)
+        }

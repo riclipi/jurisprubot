@@ -285,7 +285,7 @@ class UnifiedPJeClient:
         
         # Cliente Scraping (reutiliza do sistema existente)
         try:
-            from src.scraper.realtime_search import RealtimeJurisprudenceSearch
+            from ..scraper.realtime_search import RealtimeJurisprudenceSearch
             self.scraper = RealtimeJurisprudenceSearch()
         except ImportError:
             self.logger.warning("Scraper não disponível")

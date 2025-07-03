@@ -9,9 +9,9 @@ from typing import Optional
 import logging
 from datetime import datetime
 
-from src.api.models import TaskRequest, TaskResponse
-from src.database.database_manager import get_db_manager
-from src.pipeline.celery_app import app as celery_app
+from ..models import TaskRequest, TaskResponse
+from ...database.database_manager import get_db_manager
+from ...pipeline.celery_app import app as celery_app
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -233,7 +233,7 @@ async def cleanup_system(
     Executa limpeza do sistema
     """
     try:
-        from src.pipeline.tasks.maintenance import cleanup_old_logs, optimize_embeddings
+        from ...pipeline.tasks.maintenance import cleanup_old_logs, optimize_embeddings
         
         # Agendar tasks de limpeza
         tasks = [
@@ -261,7 +261,7 @@ async def vacuum_database(
     Executa VACUUM ANALYZE no PostgreSQL
     """
     try:
-        from src.pipeline.tasks.maintenance import vacuum_database
+        from ...pipeline.tasks.maintenance import vacuum_database
         
         task = vacuum_database.delay()
         

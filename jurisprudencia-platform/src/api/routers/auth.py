@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
 
-from src.auth.auth import (
+from ...auth.auth import (
     Token, User, UserCreate, UserUpdate,
     user_manager, create_tokens_for_user,
     get_current_active_user, require_admin,

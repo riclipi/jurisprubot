@@ -12,7 +12,7 @@ from psycopg2.extras import RealDictCursor
 from psycopg2.extensions import register_adapter, AsIs
 from sentence_transformers import SentenceTransformer
 
-from src.database.database_manager import get_db_manager
+from ..database.database_manager import get_db_manager
 
 logger = logging.getLogger(__name__)
 

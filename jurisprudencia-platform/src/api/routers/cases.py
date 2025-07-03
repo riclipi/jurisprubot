@@ -8,8 +8,8 @@ from typing import List, Optional
 import logging
 from datetime import datetime
 
-from src.api.models import Case, CaseDetail, CaseCreate, CaseUpdate, PaginatedResponse
-from src.database.database_manager import get_db_manager
+from ..models import Case, CaseDetail, CaseCreate, CaseUpdate, PaginatedResponse
+from ...database.database_manager import get_db_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -265,7 +265,7 @@ async def reprocess_case(
     Agenda reprocessamento de um caso
     """
     try:
-        from src.pipeline.tasks.processing import process_pdf
+        from ...pipeline.tasks.processing import process_pdf
         
         db = get_db_manager()
         

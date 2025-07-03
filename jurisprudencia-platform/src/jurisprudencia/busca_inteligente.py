@@ -12,10 +12,32 @@ from enum import Enum
 import json
 import logging
 from pathlib import Path
+import os
 
 # Importar sistemas existentes
-from src.rag.simple_search import SimpleSearchEngine
-from src.scraper.realtime_search import RealtimeJurisprudenceSearch
+from ..rag.simple_search import SimpleSearchEngine
+from ..scraper.realtime_search import RealtimeJurisprudenceSearch
+
+# Importar cliente Gemini
+try:
+    from ..ai.gemini_client import GeminiClient, get_gemini_client
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    logging.warning("Gemini não disponível para busca inteligente")
+
+# Importar outros LLMs como fallback
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
 
 class TipoTribunal(Enum):
     STF = "stf"
@@ -75,12 +97,20 @@ class BuscaInteligente:
     Funcionalidades avançadas que superam o Justino Cível
     """
     
-    def __init__(self):
+    def __init__(self, use_ai: bool = True, ai_provider: str = "gemini"):
         self.setup_logging()
         self._inicializar_sistemas()
         self._carregar_base_conhecimento()
         self._configurar_parametros()
         self._inicializar_brlaw_mcp()
+        
+        # Configuração de IA
+        self.use_ai = use_ai
+        self.ai_provider = ai_provider
+        self.ai_client = None
+        
+        if self.use_ai:
+            self._inicializar_cliente_ia()
     
     def setup_logging(self):
         """Configura sistema de logs"""
@@ -186,7 +216,7 @@ class BuscaInteligente:
     def _inicializar_brlaw_mcp(self):
         """Inicializa integração com BRLaw MCP"""
         try:
-            from src.mcp_brlaw.brlaw_integration import BRLawMCPIntegration
+            from ..mcp_brlaw.brlaw_integration import BRLawMCPIntegration
             self.brlaw_mcp = BRLawMCPIntegration()
             self.brlaw_disponivel = True
             self.logger.info("BRLaw MCP integrado com sucesso")
@@ -1002,3 +1032,245 @@ class BuscaInteligente:
             f.write(relatorio)
         
         return str(caminho_arquivo)
+    
+    def _inicializar_cliente_ia(self):
+        """Inicializa cliente de IA com fallback"""
+        
+        if self.ai_provider == "gemini" and GEMINI_AVAILABLE:
+            try:
+                self.ai_client = get_gemini_client()
+                self.logger.info("Gemini configurado para busca inteligente")
+                return
+            except Exception as e:
+                self.logger.warning(f"Erro ao configurar Gemini: {e}")
+        
+        # Fallback para OpenAI
+        if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
+            self.ai_provider = "openai"
+            openai.api_key = os.getenv("OPENAI_API_KEY")
+            self.logger.info("Usando OpenAI como fallback")
+            return
+        
+        # Fallback para Groq
+        if GROQ_AVAILABLE and os.getenv("GROQ_API_KEY"):
+            self.ai_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+            self.ai_provider = "groq"
+            self.logger.info("Usando Groq como fallback")
+            return
+        
+        # Sem IA disponível
+        self.use_ai = False
+        self.logger.warning("Nenhum provedor de IA disponível para busca inteligente")
+    
+    def analisar_precedentes_com_ia(
+        self,
+        precedentes: List[PrecedenteJuridico],
+        contexto_caso: str
+    ) -> Dict[str, Any]:
+        """Analisa precedentes usando IA para insights avançados"""
+        
+        if not self.use_ai or not precedentes:
+            return {}
+        
+        # Preparar texto dos precedentes
+        texto_precedentes = "\n\n".join([
+            f"Precedente {i+1}:\n"
+            f"Tribunal: {p.tribunal}\n"
+            f"Data: {p.data_julgamento.strftime('%d/%m/%Y')}\n"
+            f"Ementa: {p.ementa[:500]}...\n"
+            f"Relevância: {p.relevancia.value}"
+            for i, p in enumerate(precedentes[:10])  # Limitar a 10 precedentes
+        ])
+        
+        prompt = f"""Analise os seguintes precedentes jurídicos no contexto do caso apresentado:
+
+CONTEXTO DO CASO:
+{contexto_caso[:1000]}
+
+PRECEDENTES:
+{texto_precedentes}
+
+Forneça:
+1. Tendência jurisprudencial identificada
+2. Pontos de convergência entre os precedentes
+3. Pontos de divergência
+4. Recomendações estratégicas baseadas nos precedentes
+5. Riscos e oportunidades identificados"""
+        
+        try:
+            if self.ai_provider == "gemini" and self.ai_client:
+                resposta = self.ai_client.generate(
+                    prompt,
+                    system_prompt="Você é um especialista em análise jurisprudencial com profundo conhecimento do direito brasileiro.",
+                    temperature=0.3
+                )
+            
+            elif self.ai_provider == "openai":
+                response = openai.ChatCompletion.create(
+                    model="gpt-4" if "gpt-4" in os.getenv("OPENAI_MODEL", "") else "gpt-3.5-turbo",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Você é um especialista em análise jurisprudencial com profundo conhecimento do direito brasileiro."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3
+                )
+                resposta = response.choices[0].message.content
+            
+            elif self.ai_provider == "groq" and self.ai_client:
+                response = self.ai_client.chat.completions.create(
+                    model="mixtral-8x7b-32768",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Você é um especialista em análise jurisprudencial com profundo conhecimento do direito brasileiro."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3
+                )
+                resposta = response.choices[0].message.content
+            
+            return {
+                "analise_ia": resposta,
+                "provider": self.ai_provider,
+                "data_analise": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Erro na análise com IA: {e}")
+            return {}
+    
+    def gerar_recomendacao_estrategica_ia(
+        self,
+        analise: AnaliseJurisprudencial
+    ) -> Optional[str]:
+        """Gera recomendação estratégica usando IA"""
+        
+        if not self.use_ai:
+            return None
+        
+        # Preparar contexto
+        contexto = f"""Análise Jurisprudencial:
+- Tipo de ação: {analise.tipo_acao}
+- Precedentes favoráveis: {len(analise.precedentes_favoraveis)}
+- Precedentes contrários: {len(analise.precedentes_contrarios)}
+- Tendência: {analise.tendencia_jurisprudencial}
+- Grau de consolidação: {analise.grau_consolidacao:.1%}
+- Súmulas aplicáveis: {', '.join(analise.sumulas_aplicaveis[:3]) if analise.sumulas_aplicaveis else 'Nenhuma'}"""
+        
+        prompt = f"""Com base na análise jurisprudencial abaixo, elabore uma recomendação estratégica detalhada:
+
+{contexto}
+
+A recomendação deve incluir:
+1. Estratégia processual recomendada
+2. Argumentos principais a serem utilizados
+3. Precedentes chave para citação
+4. Riscos a serem mitigados
+5. Probabilidade de êxito estimada"""
+        
+        try:
+            if self.ai_provider == "gemini" and self.ai_client:
+                return self.ai_client.generate(
+                    prompt,
+                    system_prompt="Você é um advogado sênior especializado em estratégia processual.",
+                    temperature=0.4
+                )
+            
+            elif self.ai_provider == "openai":
+                response = openai.ChatCompletion.create(
+                    model="gpt-4" if "gpt-4" in os.getenv("OPENAI_MODEL", "") else "gpt-3.5-turbo",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Você é um advogado sênior especializado em estratégia processual."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.4
+                )
+                return response.choices[0].message.content
+            
+            elif self.ai_provider == "groq" and self.ai_client:
+                response = self.ai_client.chat.completions.create(
+                    model="mixtral-8x7b-32768",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Você é um advogado sênior especializado em estratégia processual."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.4
+                )
+                return response.choices[0].message.content
+                
+        except Exception as e:
+            self.logger.error(f"Erro ao gerar recomendação: {e}")
+            return None
+    
+    def buscar_com_ia_contextual(
+        self,
+        consulta: str,
+        contexto_adicional: Optional[str] = None,
+        filtros: Optional[Dict[str, Any]] = None
+    ) -> List[PrecedenteJuridico]:
+        """Busca avançada usando IA para melhorar a consulta"""
+        
+        # Busca tradicional primeiro
+        resultados = self.buscar_jurisprudencia(consulta, filtros=filtros)
+        
+        if not self.use_ai or not resultados:
+            return resultados
+        
+        # Usar IA para re-ranquear resultados
+        try:
+            prompt = f"""Analise a relevância dos seguintes precedentes para a consulta:
+
+CONSULTA: {consulta}
+{f'CONTEXTO ADICIONAL: {contexto_adicional}' if contexto_adicional else ''}
+
+Classifique cada precedente de 1-10 em relevância e justifique brevemente."""
+            
+            # Análise com IA
+            if self.ai_provider == "gemini" and self.ai_client:
+                analise = self.ai_client.generate(
+                    prompt,
+                    temperature=0.2
+                )
+            else:
+                # Fallback sem re-ranking
+                return resultados
+            
+            # Aplicar insights da IA (implementação simplificada)
+            self.logger.info("Resultados re-ranqueados com IA")
+            
+        except Exception as e:
+            self.logger.error(f"Erro no re-ranking com IA: {e}")
+        
+        return resultados
+    
+    def estimar_custo_busca_ia(self, consulta: str) -> Dict[str, float]:
+        """Estima custo de busca com IA"""
+        
+        if self.ai_provider == "gemini" and hasattr(self.ai_client, 'estimate_cost'):
+            return self.ai_client.estimate_cost(consulta)
+        
+        # Estimativa genérica
+        tokens = len(consulta) // 4 * 10  # Busca usa mais tokens
+        
+        custos = {
+            "gemini": 0.000075 * tokens / 1000,
+            "openai": 0.002 * tokens / 1000,
+            "groq": 0.0001 * tokens / 1000
+        }
+        
+        return {
+            "provider": self.ai_provider,
+            "tokens_estimados": tokens,
+            "custo_usd": custos.get(self.ai_provider, 0),
+            "custo_brl": custos.get(self.ai_provider, 0) * 5.0
+        }

@@ -10,11 +10,11 @@ import sys
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.scraper.tjsp_scraper import TJSPScraper
-from src.processing.pdf_processor import PDFProcessor
-from src.processing.text_chunker import TextChunker
-from src.rag.embeddings import EmbeddingsManager
-from src.rag.search_engine import JurisprudenceSearchEngine
+from ..scraper.tjsp_scraper import TJSPScraper
+from ..processing.pdf_processor import PDFProcessor
+from ..processing.text_chunker import TextChunker
+from ..rag.embeddings import EmbeddingsManager
+from ..rag.search_engine import JurisprudenceSearchEngine
 from config.settings import STREAMLIT_CONFIG, RAW_PDF_DIR, PROCESSED_DIR
 
 # Page configuration

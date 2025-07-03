@@ -20,11 +20,11 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 # Imports dos módulos do sistema
-from src.config.credentials_manager import CredentialsManager
-from src.pje_super.connection_manager import ConnectionManager
-from src.utils.cnj_validator import CNJValidator, validar_numero_cnj
-from src.monitoring.logging_config import setup_logging
-from src.monitoring.metrics import get_metrics_summary
+from ..config.credentials_manager import CredentialsManager
+from ..pje_super.connection_manager import ConnectionManager
+from ..utils.cnj_validator import CNJValidator, validar_numero_cnj
+from ..monitoring.logging_config import setup_logging
+from ..monitoring.metrics import get_metrics_summary
 
 # Configurar página
 st.set_page_config(
@@ -1051,7 +1051,7 @@ class AdminInterface:
                     st.success(f"✅ Número CNJ válido!")
                     
                     # Extrair componentes
-                    from src.utils.cnj_validator import extrair_componentes_cnj
+                    from ..utils.cnj_validator import extrair_componentes_cnj
                     componentes = extrair_componentes_cnj(cnj_input)
                     
                     if componentes:
