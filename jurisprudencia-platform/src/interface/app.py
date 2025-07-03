@@ -28,13 +28,18 @@ except ImportError:
 try:
     from scraper.realtime_search import RealtimeJurisprudenceSearch
 except ImportError:
-    st.warning("⚠️ Busca em tempo real não disponível")
-    # Criar classe dummy para não quebrar
-    class RealtimeJurisprudenceSearch:
-        def __init__(self, *args, **kwargs):
-            pass
-        def get_relevant_chunks(self, query):
-            return []
+    try:
+        # Tentar versão lite
+        from scraper.realtime_search_lite import RealtimeJurisprudenceSearch
+        st.info("ℹ️ Usando versão lite da busca em tempo real")
+    except ImportError:
+        st.warning("⚠️ Busca em tempo real não disponível")
+        # Criar classe dummy para não quebrar
+        class RealtimeJurisprudenceSearch:
+            def __init__(self, *args, **kwargs):
+                pass
+            def get_relevant_chunks(self, query):
+                return []
 
 # Configuração da página
 st.set_page_config(
