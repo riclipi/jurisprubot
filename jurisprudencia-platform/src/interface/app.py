@@ -6,14 +6,18 @@ Sistema Avançado com Busca Local + Tempo Real
 import streamlit as st
 import sys
 import os
+
+# Adicionar o diretório pai ao path para resolver imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import time
 import json
 from datetime import datetime, timedelta
 import hashlib
 import base64
 from pathlib import Path
-from ..rag.simple_search import SimpleSearchEngine
-from ..scraper.realtime_search import RealtimeJurisprudenceSearch
+from rag.simple_search import SimpleSearchEngine
+from scraper.realtime_search import RealtimeJurisprudenceSearch
 
 # Configuração da página
 st.set_page_config(
@@ -642,7 +646,7 @@ def render_mcp_interface():
     """Renderizar interface MCP (funcionalidades extras)"""
     try:
         # Importar módulo MCP
-        from .mcp_tab import render_mcp_tab
+        from mcp_tab import render_mcp_tab
         render_mcp_tab()
     except ImportError as e:
         st.error("⚠️ Módulos MCP não estão disponíveis")

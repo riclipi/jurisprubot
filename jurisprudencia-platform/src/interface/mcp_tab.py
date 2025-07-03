@@ -7,15 +7,18 @@ import streamlit as st
 import sys
 import os
 
+# Adicionar o diretório pai ao path para resolver imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from pathlib import Path
 from datetime import datetime
 import json
 
 # Importar módulos MCP (com try/except para não quebrar se houver erro)
 try:
-    from ..mcp_integration.document_manager import MCPDocumentManager
-    from ..mcp_integration.file_organizer import FileOrganizer
-    from ..mcp_integration.pdf_processor import PDFProcessor
+    from mcp_integration.document_manager import MCPDocumentManager
+    from mcp_integration.file_organizer import FileOrganizer
+    from mcp_integration.pdf_processor import PDFProcessor
     MCP_AVAILABLE = True
 except Exception as e:
     st.error(f"⚠️ Módulos MCP não disponíveis: {e}")
