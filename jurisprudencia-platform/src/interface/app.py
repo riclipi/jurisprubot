@@ -16,8 +16,25 @@ from datetime import datetime, timedelta
 import hashlib
 import base64
 from pathlib import Path
-from rag.simple_search import SimpleSearchEngine
-from scraper.realtime_search import RealtimeJurisprudenceSearch
+
+# Tentar importar versão completa, senão usar versão lite
+try:
+    from rag.simple_search import SimpleSearchEngine
+except ImportError:
+    st.warning("⚠️ Usando versão simplificada do sistema de busca")
+    from rag.simple_search_lite import SimpleSearchEngine
+
+# Importar busca em tempo real
+try:
+    from scraper.realtime_search import RealtimeJurisprudenceSearch
+except ImportError:
+    st.warning("⚠️ Busca em tempo real não disponível")
+    # Criar classe dummy para não quebrar
+    class RealtimeJurisprudenceSearch:
+        def __init__(self, *args, **kwargs):
+            pass
+        def get_relevant_chunks(self, query):
+            return []
 
 # Configuração da página
 st.set_page_config(

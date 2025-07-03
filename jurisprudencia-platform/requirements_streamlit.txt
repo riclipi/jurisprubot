@@ -1,0 +1,15 @@
+# Core dependencies for Streamlit Cloud
+streamlit>=1.28.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+python-dotenv>=1.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Sentence transformers with CPU-only torch
+--find-links https://download.pytorch.org/whl/cpu
+torch==2.0.0+cpu
+sentence-transformers>=2.2.0
+
+# Basic dependencies
+plotly>=5.18.0
