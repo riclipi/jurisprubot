@@ -29,17 +29,32 @@ try:
     from scraper.realtime_search import RealtimeJurisprudenceSearch
 except ImportError:
     try:
-        # Tentar versão lite
-        from scraper.realtime_search_lite import RealtimeJurisprudenceSearch
-        st.info("ℹ️ Usando versão lite da busca em tempo real")
-    except ImportError:
-        st.warning("⚠️ Busca em tempo real não disponível")
-        # Criar classe dummy para não quebrar
+        # Tentar versão cloud safe
+        from scraper.cloud_safe_scraper import CloudSafeScraper
+        
+        # Wrapper para compatibilidade
         class RealtimeJurisprudenceSearch:
-            def __init__(self, *args, **kwargs):
-                pass
+            def __init__(self, max_results=20):
+                self.scraper = CloudSafeScraper()
+                self.max_results = max_results
+            
             def get_relevant_chunks(self, query):
-                return []
+                return self.scraper.search_tjsp(query, self.max_results)
+        
+        st.info("ℹ️ Usando scraper otimizado para cloud")
+    except ImportError:
+        try:
+            # Tentar versão lite
+            from scraper.realtime_search_lite import RealtimeJurisprudenceSearch
+            st.info("ℹ️ Usando versão lite da busca")
+        except ImportError:
+            st.warning("⚠️ Busca em tempo real não disponível")
+            # Criar classe dummy
+            class RealtimeJurisprudenceSearch:
+                def __init__(self, *args, **kwargs):
+                    pass
+                def get_relevant_chunks(self, query):
+                    return []
 
 # Configuração da página
 st.set_page_config(
